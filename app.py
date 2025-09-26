@@ -6,18 +6,19 @@ from flask import Flask, request, jsonify, send_from_directory
 from dotenv import load_dotenv
 import requests
 from bs4 import BeautifulSoup
+import time 
 
 # Load environment variables from .env file
 load_dotenv()
 
 # --- Configuration ---
 app = Flask(__name__, static_folder='static')
-gemini_api_key = os.getenv("GEMINI_API_KEY") # Gemini API key from environment variable
+gemini_api_key = "AIzaSyDufBM6FYgfHgxwLwGeXGwrJ3MWPItbL8g"#os.getenv("GEMINI_API_KEY") # Gemini API key from environment variable
 fmp_api_key = os.getenv("FMP_API_KEY") # Financial Modeling Prep API key (if needed)
 
 # Configure the Gemini API client
 genai.configure(api_key=gemini_api_key) 
-gemini_model = genai.GenerativeModel('gemini-1.5-flash-latest') # Using a modern, efficient model
+gemini_model = genai.GenerativeModel('gemini-2.5-flash-lite') # Using a modern, efficient model
 
 # A dictionary to hold all prompts for the AI model.
 PROMPTS = {
@@ -32,256 +33,118 @@ PROMPTS = {
 # --- ⚙️ YOUR ACTION REQUIRED: ADD YOUR FINANCIAL LOGIC HERE ⚙️ ---
 
 
+def _parse_statements_from_soup(soup: BeautifulSoup) -> tuple[str | None, str | None]:
+    """Helper function to extract tables from a BeautifulSoup object."""
+    # Find the Profit & Loss table
+    profit_loss_section = soup.find('section', id='profit-loss')
+    profit_loss_html = None
+    if profit_loss_section:
+        profit_loss_table = profit_loss_section.find('table', class_='data-table')
+        if profit_loss_table:
+            profit_loss_html = str(profit_loss_table)
+    
+    # Find the Balance Sheet table
+    balance_sheet_section = soup.find('section', id='balance-sheet')
+    balance_sheet_html = None
+    if balance_sheet_section:
+        balance_sheet_table = balance_sheet_section.find('table', class_='data-table')
+        if balance_sheet_table:
+            balance_sheet_html = str(balance_sheet_table)
+
+    if not profit_loss_html:
+        print("Warning: Profit & Loss section/table not found on the page.")
+    if not balance_sheet_html:
+        print("Warning: Balance Sheet section/table not found on the page.")
+        
+    return profit_loss_html, balance_sheet_html
 def get_yearly_financial_statements_html(ticker: str) -> tuple[str | None, str | None]:
     """
-    Fetches and extracts the yearly Profit & Loss and Balance Sheet statements 
-    for a given stock ticker from screener.in.
-
-    The web can be unreliable, so this function includes error handling for network 
-    issues and changes in website structure.
-
-    Args:
-        ticker (str): The stock ticker symbol (e.g., 'RELIANCE').
-
-    Returns:
-        tuple[str | None, str | None]: A tuple containing two elements:
-            - The HTML string of the Profit & Loss table, or None if not found.
-            - The HTML string of the Balance Sheet table, or None if not found.
+    Fetches and extracts yearly financial statements for a given ticker.
+    It automatically tries both consolidated and standalone URLs and validates
+    that the found tables actually contain data.
     """
-    try:
-        # The URL is constructed for the consolidated statements page.
-        url = f"https://www.screener.in/company/{ticker}/consolidated/"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-        
-        print(f"Fetching data from {url}...")
-        response = requests.get(url, headers=headers)
-        # Raise an exception for HTTP errors (e.g., 404, 500)
-        response.raise_for_status()  
-
-        soup = BeautifulSoup(response.content, 'html.parser')
-
-        # --- Extract Profit & Loss Statement ---
-        # The financial statements are in sections with specific IDs.
-        profit_loss_section = soup.find('section', id='profit-loss')
-        profit_loss_html = None
-        if profit_loss_section:
-            # The table is within a specific div inside the section.
-            profit_loss_table = profit_loss_section.find('table', class_='data-table')
-            if profit_loss_table:
-                profit_loss_html = str(profit_loss_table)
-            else:
-                print("Warning: Profit & Loss data table not found on the page.")
-        else:
-            print("Warning: Profit & Loss section not found on the page.")
-
-        # --- Extract Balance Sheet Statement ---
-        balance_sheet_section = soup.find('section', id='balance-sheet')
-        balance_sheet_html = None
-        if balance_sheet_section:
-            balance_sheet_table = balance_sheet_section.find('table', class_='data-table')
-            if balance_sheet_table:
-                balance_sheet_html = str(balance_sheet_table)
-            else:
-                print("Warning: Balance Sheet data table not found on the page.")
-        else:
-            print("Warning: Balance Sheet section not found on the page.")
-            
-        return profit_loss_html, balance_sheet_html
-
-    except requests.exceptions.RequestException as e:
-        print(f"Error: A network error occurred while fetching the data: {e}")
-        return None, None
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-        return None, None
-
-def get_financial_data(ticker):
-    """
-    Scrapes key financial data for the most recent quarter for AI analysis.
-    This function remains to ensure the projection logic does not break.
-    """
-    print(f"Scraping LATEST QUARTER data for {ticker} from Screener.in...")
-    try:
-        url = f"https://www.screener.in/company/{ticker}/consolidated/"
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.content, 'lxml')
-        quarters_table = soup.select_one("section#quarters table")
-        if not quarters_table:
-            raise ValueError("Could not find the 'Quarterly Results' table.")
-
-        header_row = quarters_table.find('thead').find_all('th')
-        last_column_index = len(header_row) - 1
-
-        def get_metric(table, metric_name):
-            for row in table.select("tbody tr"):
-                first_cell = row.find("td")
-                if not first_cell:
-                    continue
-
-                # Extract text even if it's inside <button> or nested tags
-                row_name = first_cell.get_text(strip=True)
-
-                if metric_name.lower() in row_name.lower():
-                    # All numeric cells after the label
-                    value_cells = row.find_all("td")[1:]
-                    last_value = value_cells[-1].get_text(strip=True).replace(",", "").replace("−", "-")
-
-                    try:
-                        return float(last_value)
-                    except ValueError:
-                        return 0.0
-            return 0.0
-
-        return {
-            "totalRevenue": get_metric(quarters_table, "Sales"),          # not "Revenue"
-            "ebitda": get_metric(quarters_table, "Operating Profit"),
-            "pbt": get_metric(quarters_table, "Profit before tax"),
-            "pat": get_metric(quarters_table, "Net Profit")               # not "PAT"
-        }
-
-    except Exception as e:
-        print(f"An error occurred during quarterly scraping: {e}")
-        return {"totalRevenue": 0, "ebitda": 0, "pbt": 0, "pat": 0}
-
-
-
-
-def get_yearly_financial_data(ticker):
-    """
-    Scrapes YEARLY Profit & Loss and Balance Sheet data from Screener.in
-    and extracts key metrics (Sales, EBITDA, PBT, PAT).
-    """
-    print(f"Scraping YEARLY statements for {ticker} from Screener.in...")
-    try:
-        url = f"https://www.screener.in/company/{ticker}/consolidated/"
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.content, 'lxml')
-
-        # Locate the yearly Profit & Loss table
-        profit_loss_section = soup.find('section', id='profit-loss')
-        if not profit_loss_section:
-            raise ValueError("Could not find the Profit & Loss section.")
-
-        pl_table = profit_loss_section.find("table")
-        if not pl_table:
-            raise ValueError("Could not find the Profit & Loss table.")
-
-        # --- Helper function to get last available value for a metric ---
-        def get_metric(table, metric_name):
-            for row in table.select("tbody tr"):
-                first_cell = row.find("td")
-                if not first_cell:
-                    continue
-
-                row_name = first_cell.get_text(strip=True)
-                if metric_name.lower() in row_name.lower():
-                    # All numeric cells after the label
-                    value_cells = row.find_all("td")[1:]
-                    if not value_cells:
-                        return 0.0
-                    last_value = value_cells[-1].get_text(strip=True).replace(",", "").replace("−", "-")
-                    try:
-                        return float(last_value)
-                    except ValueError:
-                        return 0.0
-            return 0.0
-
-        # Extract metrics from Profit & Loss
-        return {
-            "totalRevenue": get_metric(pl_table, "Sales"),          # yearly sales
-            "ebitda": get_metric(pl_table, "Operating Profit"),     # yearly EBITDA
-            "pbt": get_metric(pl_table, "Profit before tax"),       # yearly PBT
-            "pat": get_metric(pl_table, "Net Profit")               # yearly PAT
-        }
-
-    except Exception as e:
-        print(f"An error occurred during yearly scraping: {e}")
-        return {"totalRevenue": 0, "ebitda": 0, "pbt": 0, "pat": 0}
-
-
-def extract_financial_data_from_html(profit_and_loss_html: str, balance_sheet_html: str) -> dict:
-    """
-    Extracts key financial metrics for the most recent year from HTML tables.
-
-    Args:
-        profit_and_loss_html (str): The HTML string of the Profit & Loss table.
-        balance_sheet_html (str): The HTML string of the Balance Sheet table.
-
-    Returns:
-        dict: A dictionary containing the extracted financial metrics.
-    """
+    urls_to_try = [
+        f"https://www.screener.in/company/{ticker}/consolidated/",
+        f"https://www.screener.in/company/{ticker}/"
+    ]
     
-    def _get_metric_from_table(table_soup, metric_name, is_pnl=False):
-        """Helper function to find and extract a metric from a parsed table."""
-        try:
-            for row in table_soup.select("tbody tr"):
-                # Find the cell with the metric name
-                first_cell = row.find("td")
-                if not first_cell:
-                    continue
-
-                row_name = first_cell.get_text(strip=True)
-
-                # Check if the desired metric name is in this row's title
-                if metric_name.lower() in row_name.lower():
-                    # Get all numerical value cells for the row
-                    value_cells = row.find_all("td")[1:]
-                    if not value_cells:
-                        return 0.0
-
-                    # For P&L statement, the last column is TTM, so we take the second to last.
-                    # For Balance Sheet, the last column is the most recent year.
-                    target_index = -2 if is_pnl else -1
-                    
-                    # Ensure we don't get an index error if there are not enough columns
-                    if len(value_cells) >= abs(target_index):
-                         last_value_str = value_cells[target_index].get_text(strip=True)
-                    else: # Fallback to the last available column
-                        last_value_str = value_cells[-1].get_text(strip=True)
-
-
-                    # Clean and convert the value to a float
-                    if not last_value_str:
-                        return 0.0
-                    cleaned_value = last_value_str.replace(",", "").replace("−", "-")
-                    return float(cleaned_value)
-            
-            # Return 0.0 if the metric was not found
-            return 0.0
-
-        except (ValueError, IndexError) as e:
-            print(f"Warning: Could not parse value for '{metric_name}'. Error: {e}")
-            return 0.0
-    
-    # Parse the HTML strings into BeautifulSoup objects
-    pl_soup = BeautifulSoup(profit_and_loss_html, 'html.parser')
-    bs_soup = BeautifulSoup(balance_sheet_html, 'html.parser')
-
-    # Define the metrics to be extracted
-    financial_data = {
-        # --- From Profit & Loss ---
-        "sales": _get_metric_from_table(pl_soup, "Sales", is_pnl=True),
-        "operating_profit": _get_metric_from_table(pl_soup, "Operating Profit", is_pnl=True),
-        "interest": _get_metric_from_table(pl_soup, "Interest", is_pnl=True),
-        "depreciation": _get_metric_from_table(pl_soup, "Depreciation", is_pnl=True),
-        "pbt": _get_metric_from_table(pl_soup, "Profit before tax", is_pnl=True),
-        "net_profit": _get_metric_from_table(pl_soup, "Net Profit", is_pnl=True),
-        "eps": _get_metric_from_table(pl_soup, "EPS in Rs", is_pnl=True),
-
-        # --- From Balance Sheet ---
-        "borrowings": _get_metric_from_table(bs_soup, "Borrowings"),
-        "equity_capital": _get_metric_from_table(bs_soup, "Equity Capital"),
-        "reserves": _get_metric_from_table(bs_soup, "Reserves"),
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
 
-    return financial_data
+    for url in urls_to_try:
+        try:
+            print(f"Attempting to fetch data from: {url}")
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
 
+            soup = BeautifulSoup(response.content, 'html.parser')
+            pl_html, bs_html = _parse_statements_from_soup(soup)
+            
+            # If we found the HTML for the tables, proceed to validate them
+            if pl_html and bs_html:
+                # --- NEW VALIDATION STEP ---
+                # Check if the extracted table actually has data (year columns)
+                # by doing a quick test extraction.
+                pl_data = extract_financial_data_from_html(pl_html)
+                
+                if pl_data and pl_data.keys():
+                    print("✅ Successfully found valid financial statements.")
+                    return pl_html, bs_html
+                else:
+                    # This happens if the table exists but is empty
+                    print("⚠️ Found tables, but they contain no data. Trying next URL...")
+            else:
+                # This happens if the <section> or <table> tags weren't found
+                print("Could not find the required tables, trying next URL...")
+
+        except requests.exceptions.RequestException as e:
+            print(f"❌ A network error occurred for {url}: {e}. Trying next URL...")
+            continue
+    
+    print(f"Error: Failed to retrieve valid data for {ticker} from all attempted sources.")
+    return None, None
+
+def extract_financial_data_from_html(html: str) -> dict[str, dict[str, float]]:
+    """
+    Parses the HTML of a financial statement table and extracts the data.
+    (This function is good as is, no changes needed).
+    """
+    soup = BeautifulSoup(html, 'html.parser')
+    table = soup.find('table', class_='data-table')
+    
+    if not table:
+        print("Error: No data table found in the provided HTML.")
+        return {}
+
+    # Extract headers (years)
+    headers = table.find('thead').find_all('th')[1:]
+    years = [header.get_text(strip=True) for header in headers]
+
+    data = {year: {} for year in years}
+
+    # Extract rows
+    rows = table.find('tbody').find_all('tr')
+    for row in rows:
+        cols = row.find_all('td')
+        if not cols or len(cols) < 2:
+            continue
+
+        item_name = cols[0].get_text(strip=True).replace('.', '')
+        if not item_name:
+            continue
+
+        for i, col in enumerate(cols[1:]):
+            if i < len(years):
+                year = years[i]
+                value_str = col.get_text(strip=True).replace(',', '').replace('₹', '')
+                try:
+                    value = float(value_str) if value_str not in ('-', '') else 0.0
+                except ValueError:
+                    value = 0.0
+                data[year][item_name] = value
+
+    return data
 
 
 
@@ -317,7 +180,7 @@ def extract_text_from_pdfs(pdf_files):
 
 def call_gemini(prompt, text_to_analyze):
     """Calls the Gemini API with a specific prompt and text."""
-    full_prompt = f"{prompt}\n\nHere is the text to analyze:\n\n---\n\n{text_to_analyze}"
+    full_prompt = f"{prompt}\n\nHere is the transcripts to analyze:\n\n---\n\n{text_to_analyze}"
     try:
         response = gemini_model.generate_content(
                     full_prompt,
@@ -388,10 +251,10 @@ def calculate_financial_projections(assumptions, financial_data):
 
     # Calculate base year (Year 0) EBITDA
     # EBITDA = Operating Profit (EBIT) + Depreciation
-    year0_ebitda = financial_data['operating_profit'] + financial_data['depreciation']
+    year0_ebitda = financial_data['Operating Profit'] + financial_data['Depreciation']
     
     # Calculate the number of shares (assumed to be constant)
-    num_shares = calculate_number_of_shares(financial_data['net_profit'], financial_data['eps'])
+    num_shares = calculate_number_of_shares(financial_data['Net Profit+'], financial_data['EPS in Rs'])
 
     # Initialize HTML string with CSS styling
     html_output = """
@@ -418,19 +281,19 @@ def calculate_financial_projections(assumptions, financial_data):
         tax_rate = case_assumptions['tax_rate']
 
         # Perform calculations for Year 1 and Year 2
-        revenues_proj = calculate_revenue_growth(financial_data['sales'], growth_rate, 2)
+        revenues_proj = calculate_revenue_growth(financial_data['Sales+'], growth_rate, 2)
         ebitdas_proj = calculate_ebitda(revenues_proj, ebitda_margin)
-        pbts_proj = calculate_pbt(ebitdas_proj, financial_data['interest'], financial_data['depreciation'])
+        pbts_proj = calculate_pbt(ebitdas_proj, financial_data['Interest'], financial_data['Depreciation'])
         pats_proj = calculate_pat(pbts_proj, tax_rate)
         eps_proj = calculate_eps(pats_proj, num_shares)
 
         # Combine Year 0 data with projections for the table
         data_rows = {
-            "Revenue": [financial_data['sales']] + revenues_proj,
+            "Revenue": [financial_data['Sales+']] + revenues_proj,
             "EBITDA": [year0_ebitda] + ebitdas_proj,
-            "PBT": [financial_data['pbt']] + pbts_proj,
-            "PAT": [financial_data['net_profit']] + pats_proj,
-            "EPS": [financial_data['eps']] + eps_proj
+            "PBT": [financial_data['Profit before tax']] + pbts_proj,
+            "PAT": [financial_data['Net Profit+']] + pats_proj,
+            "EPS": [financial_data['EPS in Rs']] + eps_proj
         }
 
         # Build the HTML table for the current case
@@ -470,7 +333,7 @@ def generate_report():
     profit_and_loss_html, balance_sheet_html = get_yearly_financial_statements_html(ticker)
     if not profit_and_loss_html or not balance_sheet_html:
         return jsonify({"error": f"Could not fetch financial statements for ticker: {ticker}"}), 500
-    financial_data = extract_financial_data_from_html(profit_and_loss_html, balance_sheet_html)
+    financial_data = extract_financial_data_from_html(profit_and_loss_html)
 
     # 3. Call Gemini API for all text analysis sections
     business_model_md = call_gemini(PROMPTS["business_model"], combined_text)
@@ -497,7 +360,7 @@ def generate_report():
         
         # Now, parse the cleaned string
         assumptions = json.loads(clean_json_str)
-        projections_html = calculate_financial_projections(assumptions, financial_data)
+        projections_html = calculate_financial_projections(assumptions, financial_data['Mar 2025'])
         # --- ⭐️ CORRECTED CODE ENDS HERE ⭐️ ---
 
     except (json.JSONDecodeError, IndexError) as e:
@@ -526,6 +389,5 @@ def serve_frontend():
     return send_from_directory(app.static_folder, 'index.html')
 
 # --- Run the App ---
-#if __name__ == '__main__':
-
-   # app.run(host='0.0.0.0', port=5000, debug=False)
+if __name__ == '__main__':
+    app.run(port=5000, debug=True ,host='0.0.0.0')
