@@ -6,16 +6,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Giga Finanalytix - Financial Report Generator</title>
 
+    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
 
+    <!-- html2pdf.js for PDF exporting -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
-        integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg=="
+        xintegrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg=="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
+    <!-- Showdown.js for Markdown to HTML conversion -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/2.1.0/showdown.min.js"
-        integrity="sha512-LhccdVNGe2QMEfI3x4DVV3ckMRe36TfxKrgYQEpTRlPSLeFvpVuaXPOd0CLZQYDUO9GuSvpI1EMcadSNAYNeOA=="
+        xintegrity="sha512-LhccdVNGe2QMEfI3x4DVV3ckMRe36TfxKrgYQEpTRlPSLeFvpVuaXPOd0CLZQYDUO9GuSvpI1EMcadSNAYNeOA=="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
+    <!-- Custom Google Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -91,11 +95,13 @@
 <body class="antialiased text-gray-800">
 
     <div class="min-h-screen flex flex-col">
+        <!-- Header Section -->
         <header class="bg-white shadow-sm sticky top-0 z-10">
             <div class="container mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="flex items-center justify-between h-20">
                     <div class="flex items-center space-x-4">
-                        <img src="logo.png" alt="Giga Finanalytix Logo" class="h-12 w-auto">
+                        <img src="https://storage.googleapis.com/gemini-prod-us-west1-d853b1a2624a/uploaded/logo.png"
+                            alt="Giga Finanalytix Logo" class="h-12 w-auto">
                         <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Giga Finanalytix</h1>
                     </div>
                     <button id="export-pdf-btn"
@@ -111,14 +117,17 @@
             </div>
         </header>
 
+        <!-- Main Content -->
         <main class="flex-grow container mx-auto p-4 sm:p-6 lg:p-8">
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
+                <!-- Left Column: Controls and Upload -->
                 <div class="lg:col-span-1">
                     <div class="bg-white p-6 rounded-lg shadow-lg sticky top-28">
                         <h2 class="text-xl font-bold mb-4 border-b pb-2">Generate Your Analysis</h2>
 
                         <form id="report-form">
+                            <!-- Ticker Input -->
                             <div class="mb-6">
                                 <label for="ticker" class="block text-sm font-medium text-gray-700 mb-1">Stock Ticker
                                     Symbol</label>
@@ -128,6 +137,7 @@
                                 <p class="mt-2 text-xs text-gray-500">Enter the NSE ticker for financial data.</p>
                             </div>
 
+                            <!-- PDF Upload -->
                             <div class="mb-6">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Upload Concall
                                     Transcripts</label>
@@ -151,6 +161,7 @@
                                 <div id="file-list" class="mt-3 text-sm text-gray-700"></div>
                             </div>
 
+                            <!-- Generate Button -->
                             <button type="submit" id="generate-btn"
                                 class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300">
                                 <span id="btn-text">Generate Report</span>
@@ -162,6 +173,7 @@
                     </div>
                 </div>
 
+                <!-- Right Column: Report Display -->
                 <div class="lg:col-span-2">
                     <div id="report-container" class="bg-white p-8 rounded-lg shadow-lg min-h-full">
                         <div id="report-placeholder"
@@ -384,3 +396,4 @@
 </body>
 
 </html>
+
