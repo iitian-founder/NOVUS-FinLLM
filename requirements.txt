@@ -1,5 +1,6 @@
 Flask
 python-dotenv
+openai
 google-generativeai
 requests
 PyMuPDF
@@ -15,3 +16,5 @@ gunicorn
 
 yfinance
 flask_cors
+chromadb
+weasyprint

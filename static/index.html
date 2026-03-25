@@ -1,209 +1,316 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Giga Finanalytix - Financial Report Generator</title>
+    <title>Novus — Institutional Equity Research Platform</title>
+    <meta name="description" content="Novus MAS: Multi-Agent forensic equity analysis platform for Indian institutional investors.">
 
-    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        base: { bg: '#0f172a', card: '#1e293b', elevated: '#283548', border: '#334155', borderLight: '#475569' },
+                        accent: { brand: '#06b6d4', brandLight: '#22d3ee', brandDim: 'rgba(6,182,212,0.15)' },
+                        semantic: { red: '#ef4444', amber: '#f59e0b', green: '#10b981', redDim: 'rgba(239,68,68,0.12)', amberDim: 'rgba(245,158,11,0.12)', greenDim: 'rgba(16,185,129,0.12)' },
+                        txt: { primary: '#f1f5f9', secondary: '#94a3b8', muted: '#64748b', dim: '#475569' }
+                    },
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+                }
+            }
+        }
+    </script>
 
-    <!-- html2pdf.js for PDF exporting -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
-        xintegrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg=="
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/2.1.0/showdown.min.js" crossorigin="anonymous"></script>
 
-    <!-- Showdown.js for Markdown to HTML conversion -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/2.1.0/showdown.min.js"
-        xintegrity="sha512-LhccdVNGe2QMEfI3x4DVV3ckMRe36TfxKrgYQEpTRlPSLeFvpVuaXPOd0CLZQYDUO9GuSvpI1EMcadSNAYNeOA=="
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-
-    <!-- Custom Google Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
     <style>
-        /* Custom styles to complement Tailwind */
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f0f2f5;
-        }
+        *, *::before, *::after { box-sizing: border-box; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: #0f172a; min-height: 100vh; color: #f1f5f9; }
 
-        /* Styling for the generated report content */
-        .report-content h2 {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: #1a202c;
-            border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 0.5rem;
-            margin-top: 1.5rem;
-            margin-bottom: 1rem;
-        }
+        /* Card surfaces - Sharp edges */
+        .ws-card { background: #1e293b; border: 1px solid #334155; border-radius: 4px; }
+        .ws-card-flush { background: #1e293b; border: 1px solid #334155; border-radius: 4px; overflow: hidden; }
 
-        .report-content h3 {
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: #2d3748;
-            margin-top: 1rem;
-            margin-bottom: 0.5rem;
-        }
+        /* Tabs */
+        .tab-btn { padding: 8px 16px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s; background: none; border-top: none; border-left: none; border-right: none; white-space: nowrap; }
+        .tab-btn:hover { color: #94a3b8; }
+        .tab-btn.active { color: #22d3ee; border-bottom-color: #06b6d4; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeUp 0.3s ease-out; }
 
-        .report-content ul {
-            list-style-type: disc;
-            padding-left: 1.5rem;
-            margin-bottom: 1rem;
-        }
+        /* Insight cards */
+        .insight-card { background: #283548; border: 1px solid #334155; border-radius: 4px; padding: 16px; transition: all 0.25s; }
+        .insight-card:hover { border-color: #475569; }
+        .insight-card .ic-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; margin-bottom: 4px; font-weight: 600; }
+        .insight-card .ic-value { font-size: 1.4rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: #f1f5f9; }
+        .insight-card .ic-sub { font-size: 0.7rem; color: #94a3b8; margin-top: 4px; }
 
-        .report-content blockquote {
-            border-left: 4px solid #cbd5e0;
-            padding-left: 1rem;
-            margin-left: 0;
-            font-style: italic;
-            color: #4a5568;
-        }
+        /* Risk indicator */
+        .risk-badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.05em; font-family: 'JetBrains Mono', monospace; border: 1px solid transparent; }
+        .risk-low { background: rgba(16,185,129,0.12); color: #10b981; border-color: rgba(16,185,129,0.3); }
+        .risk-medium { background: rgba(245,158,11,0.12); color: #f59e0b; border-color: rgba(245,158,11,0.3); }
+        .risk-high { background: rgba(239,68,68,0.12); color: #ef4444; border-color: rgba(239,68,68,0.3); }
 
-        .loader {
-            border-top-color: #3498db;
-            -webkit-animation: spin 1s linear infinite;
-            animation: spin 1s linear infinite;
-        }
+        /* Report prose - High Density */
+        .report-prose { font-family: 'Inter', system-ui, sans-serif; line-height: 1.5; font-size: 0.85rem; color: #cbd5e1; }
+        .report-prose h1 { font-family: 'JetBrains Mono', monospace; font-size: 1.15rem; font-weight: 700; color: #f1f5f9; margin: 1.25rem 0 0.5rem; padding-bottom: 0.25rem; border-bottom: 1px solid #334155; letter-spacing: 0.05em; text-transform: uppercase; }
+        .report-prose h2 { font-family: 'JetBrains Mono', monospace; font-size: 0.95rem; font-weight: 700; color: #f1f5f9; margin: 1.25rem 0 0.5rem; padding-bottom: 0.25rem; border-bottom: 1px solid #334155; letter-spacing: 0.05em; text-transform: uppercase; }
+        .report-prose h3 { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 600; color: #e2e8f0; margin: 1rem 0 0.25rem; letter-spacing: 0.05em; text-transform: uppercase; }
+        .report-prose p { margin-bottom: 0.5rem; }
+        .report-prose ul { list-style-type: square; padding-left: 1.25rem; margin-bottom: 0.5rem; }
+        .report-prose ol { list-style-type: decimal; padding-left: 1.25rem; margin-bottom: 0.5rem; }
+        .report-prose li { margin-bottom: 0.15rem; }
+        .report-prose strong { color: #f1f5f9; font-weight: 600; }
+        .report-prose blockquote { border-left: 2px solid #06b6d4; padding: 0.25rem 0.75rem; margin: 0.5rem 0; background: rgba(6,182,212,0.06); }
+        .report-prose blockquote p { color: #22d3ee; margin: 0; }
+        .report-prose table { width: 100%; border-collapse: collapse; margin: 0.5rem 0; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
+        .report-prose th { background: #283548; font-weight: 600; color: #e2e8f0; text-transform: uppercase; font-size: 0.65rem; letter-spacing: 0.05em; padding: 6px 10px; border: 1px solid #334155; text-align: left; }
+        .report-prose td { padding: 4px 10px; border: 1px solid #334155; color: #cbd5e1; font-variant-numeric: tabular-nums; }
+        .report-prose tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+        .report-prose tr:hover td { background: rgba(6,182,212,0.04); }
+        .report-prose code { background: #283548; color: #22d3ee; padding: 0px 4px; border-radius: 2px; font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; border: 1px solid #334155; }
 
-        @-webkit-keyframes spin {
-            0% {
-                -webkit-transform: rotate(0deg);
-            }
+        /* Data tables (screener) */
+        .data-table { width: 100%; border-collapse: collapse; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; }
+        .data-table thead { position: sticky; top: 0; z-index: 10; }
+        .data-table th { background: #283548; color: #e2e8f0; font-weight: 600; padding: 6px 8px; text-align: left; border-bottom: 2px solid #475569; font-size: 0.65rem; letter-spacing: 0.05em; text-transform: uppercase; }
+        .data-table td { padding: 4px 8px; border-bottom: 1px solid rgba(51,65,85,0.5); color: #94a3b8; }
+        .data-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+        .data-table tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+        .data-table tr:hover td { background: rgba(6,182,212,0.05); color: #e2e8f0; }
+        .data-table td.line-item { color: #e2e8f0; font-weight: 500; position: sticky; left: 0; background: #1e293b; border-right: 1px solid #334155; z-index: 5; }
+        .data-table tr:nth-child(even) td.line-item { background: #1f2b3d; }
 
-            100% {
-                -webkit-transform: rotate(360deg);
-            }
-        }
+        /* Terminal badge */
+        .calc-badge { background: rgba(6,182,212,0.12); color: #22d3ee; padding: 0px 4px; border-radius: 2px; font-weight: 600; font-size: 0.75rem; border: 1px solid rgba(6,182,212,0.3); font-family: 'JetBrains Mono', monospace; }
 
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
+        /* Animations */
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-            100% {
-                transform: rotate(360deg);
-            }
-        }
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(6,182,212,0.3); border-radius: 0; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(6,182,212,0.5); }
+
+        /* Chat Copilot - High Density */
+        .copilot-panel { display: flex; flex-direction: column; height: calc(100vh - 80px); position: sticky; top: 72px; overflow: hidden; }
+        .copilot-messages { flex: 1; overflow-y: auto; padding: 12px; scroll-behavior: smooth; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
+        .chat-msg { margin-bottom: 12px; display: flex; flex-direction: column; }
+        .chat-msg.user { align-items: flex-end; }
+        .chat-msg.assistant { align-items: flex-start; }
+        .chat-bubble { max-width: 95%; padding: 8px 10px; line-height: 1.5; color: #cbd5e1; }
+        .chat-msg.user .chat-bubble { color: #06b6d4; border-right: 2px solid #06b6d4; text-align: right; }
+        .chat-msg.assistant .chat-bubble { border-left: 2px solid #334155; }
+        .chat-bubble h1, .chat-bubble h2, .chat-bubble h3 { font-size: 0.8rem; font-weight: 600; margin: 6px 0 2px; color: #22d3ee; text-transform: uppercase; }
+        .chat-bubble ul { padding-left: 12px; margin: 4px 0; }
+        .chat-bubble li { margin-bottom: 1px; }
+        .chat-bubble strong { color: #f1f5f9; }
+        .chat-bubble code { background: #283548; color: #22d3ee; padding: 0 4px; border: 1px solid #334155; }
+        .chat-sources { font-size: 0.65rem; color: #64748b; margin-top: 4px; padding: 4px 8px; border-left: 2px solid #475569; max-width: 95%; }
+        
+        .copilot-input { padding: 10px 12px; border-top: 1px solid #334155; background: #283548; display: flex; gap: 6px; }
+        .copilot-input input { flex: 1; background: #0f172a; border: 1px solid #334155; border-radius: 2px; padding: 8px 10px; color: #06b6d4; font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; outline: none; transition: border-color 0.2s; }
+        .copilot-input input:focus { border-color: #06b6d4; box-shadow: 0 0 0 1px rgba(6,182,212,0.2); }
+        .copilot-input input::placeholder { color: #475569; }
+        .copilot-send { width: 32px; height: 32px; border-radius: 2px; background: #1e293b; border: 1px solid #334155; color: #06b6d4; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: all 0.2s; }
+        .copilot-send:hover { border-color: #06b6d4; background: rgba(6,182,212,0.1); }
+        .copilot-send:disabled { opacity: 0.3; cursor: not-allowed; border-color: #334155; background: transparent; color: #475569; }
+
+        /* Loader */
+        .typing-indicator span { display: inline-block; width: 4px; height: 4px; background: #06b6d4; margin: 0 1px; animation: typing 1s infinite ease-in-out; }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing { 0%, 80%, 100% { transform: scale(0.5); opacity: 0.3; } 40% { transform: scale(1); opacity: 1; } }
+
+        /* Live terminal feed */
+        .live-log { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; line-height: 1.5; color: #64748b; }
     </style>
 </head>
 
-<body class="antialiased text-gray-800">
-
+<body class="antialiased font-sans text-sm">
     <div class="min-h-screen flex flex-col">
-        <!-- Header Section -->
-        <header class="bg-white shadow-sm sticky top-0 z-10">
-            <div class="container mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="flex items-center justify-between h-20">
-                    <div class="flex items-center space-x-4">
-                        <img src="/static/logo.png"
-                            alt="Giga Finanalytix Logo" class="h-12 w-auto">
-                        <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Giga Finanalytix</h1>
+
+        <!-- ═══ HEADER ═══ -->
+        <header class="ws-card sticky top-0 z-50 rounded-none border-x-0 border-t-0 bg-base-bg">
+            <div class="max-w-[1920px] mx-auto px-4 sm:px-5">
+                <div class="flex items-center justify-between h-[56px]">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-7 h-7 bg-base-elevated border border-accent-brand flex items-center justify-center">
+                            <span class="text-accent-brand font-mono font-bold text-sm">>_</span>
+                        </div>
+                        <div>
+                            <h1 class="text-sm font-bold text-txt-primary tracking-widest uppercase font-mono">Novus</h1>
+                            <p class="text-[9px] text-accent-brandLight font-mono opacity-80 uppercase tracking-widest mt-[1px]">Terminal_OS v2.0</p>
+                        </div>
                     </div>
-                    <button id="export-pdf-btn"
-                        class="hidden items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                            xmlns="http://www.w3.org/2000/svg">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-                        </svg>
-                        Export as PDF
-                    </button>
+                    <div class="flex items-center">
+                        <button id="export-pdf-btn" class="hidden items-center px-3 py-1.5 text-[11px] font-mono tracking-wider font-semibold rounded-sm border border-accent-brand text-accent-brand hover:bg-accent-brand/10 transition-colors">
+                            <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            Export PDF
+                        </button>
+                    </div>
                 </div>
             </div>
         </header>
 
-        <!-- Main Content -->
-        <main class="flex-grow container mx-auto p-4 sm:p-6 lg:p-8">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- ═══ MAIN WORKSPACE ═══ -->
+        <main class="flex-grow max-w-[1920px] mx-auto w-full px-4 sm:px-5 py-4">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
-                <!-- Left Column: Controls and Upload -->
-                <div class="lg:col-span-1">
-                    <div class="bg-white p-6 rounded-lg shadow-lg sticky top-28">
-                        <h2 class="text-xl font-bold mb-4 border-b pb-2">Generate Your Analysis</h2>
-
-                        <form id="report-form">
-                            <!-- Ticker Input -->
-                            <div class="mb-6">
-                                <label for="ticker" class="block text-sm font-medium text-gray-700 mb-1">Stock Ticker
-                                    Symbol</label>
-                                <input type="text" name="ticker" id="ticker"
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                    placeholder="e.g., RELIANCE" required>
-                                <p class="mt-2 text-xs text-gray-500">Enter the NSE ticker for financial data.</p>
+                <!-- ═══ LEFT: Command Center ═══ -->
+                <div class="lg:col-span-2">
+                    <div class="ws-card p-4 sticky top-[72px] space-y-4">
+                        <form id="report-form" class="space-y-4">
+                            <div>
+                                <label for="ticker" class="block text-[10px] font-mono text-txt-muted uppercase tracking-wider mb-1">Target Ticker</label>
+                                <input type="text" name="ticker" id="ticker" class="w-full rounded-sm border border-base-border bg-base-bg text-accent-brand font-mono px-2.5 py-2 text-xs focus:border-accent-brand outline-none transition-colors uppercase placeholder-txt-dim" placeholder="E.G. RELIANCE" required>
                             </div>
-
-                            <!-- PDF Upload -->
-                            <div class="mb-6">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Upload Concall
-                                    Transcripts</label>
-                                <div id="drop-zone"
-                                    class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md cursor-pointer hover:border-indigo-500 transition">
-                                    <div class="space-y-1 text-center">
-                                        <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none"
-                                            viewBox="0 0 48 48" aria-hidden="true">
-                                            <path
-                                                d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8"
-                                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                                        </svg>
-                                        <div class="flex text-sm text-gray-600">
-                                            <p class="pl-1">Upload files or drag and drop</p>
-                                            <input id="files" name="files" type="file" class="sr-only" multiple
-                                                accept=".pdf" required>
-                                        </div>
-                                        <p class="text-xs text-gray-500">PDF up to 10MB each</p>
+                            <div>
+                                <label class="block text-[10px] font-mono text-txt-muted uppercase tracking-wider mb-1">Upload Report(s)</label>
+                                <div id="drop-zone" class="flex justify-center px-2 py-3 border border-dashed border-base-border bg-base-bg rounded-sm cursor-pointer hover:border-accent-brand transition-colors">
+                                    <div class="text-center">
+                                        <p class="text-[10px] font-mono text-txt-muted">Drop PDFs here</p>
+                                        <input id="files" name="files" type="file" class="sr-only" multiple accept=".pdf" required>
                                     </div>
                                 </div>
-                                <div id="file-list" class="mt-3 text-sm text-gray-700"></div>
+                                <div id="file-list" class="mt-1.5 text-[10px] font-mono text-txt-muted"></div>
                             </div>
-
-                            <!-- Generate Button -->
-                            <button type="submit" id="generate-btn"
-                                class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300">
-                                <span id="btn-text">Generate Report</span>
-                                <div id="btn-loader"
-                                    class="hidden loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-5 w-5">
-                                </div>
+                            <button type="submit" id="generate-btn" class="w-full flex justify-center items-center py-2 px-3 rounded-sm border border-accent-brand bg-base-elevated text-accent-brand hover:bg-accent-brand/10 transition-colors disabled:opacity-30">
+                                <span id="btn-text" class="text-[11px] font-mono tracking-widest uppercase font-bold">Execute</span>
+                                <div id="btn-loader" class="hidden ml-2"><div class="w-3 h-3 border-2 border-accent-brand/30 border-t-accent-brand rounded-full animate-spin"></div></div>
                             </button>
                         </form>
-                    </div>
-                </div>
 
-                <!-- Right Column: Report Display -->
-                <div class="lg:col-span-2">
-                    <div id="report-container" class="bg-white p-8 rounded-lg shadow-lg min-h-full">
-                        <div id="report-placeholder"
-                            class="text-center text-gray-500 flex flex-col items-center justify-center h-full">
-                            <svg class="w-16 h-16 text-gray-300 mb-4" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                    d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V7a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
-                                </path>
-                            </svg>
-                            <h3 class="text-lg font-semibold">Your financial report will appear here.</h3>
-                            <p class="mt-1 text-sm">Please provide a ticker and upload 2-3 earnings transcripts to
-                                begin.</p>
-                        </div>
-                        <div id="report-content" class="report-content"></div>
-                        <div id="report-loader" class="hidden text-center py-20">
-                            <div
-                                class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-32 w-32 mx-auto">
+                        <div class="flex items-center gap-2"><div class="flex-grow border-t border-base-border"></div><span class="text-[9px] font-mono text-txt-dim uppercase">or</span><div class="flex-grow border-t border-base-border"></div></div>
+
+                        <button id="rag-analyze-btn" class="w-full flex justify-center items-center py-1.5 px-3 border border-base-border rounded-sm bg-transparent hover:border-txt-muted transition-colors disabled:opacity-30">
+                            <span id="rag-btn-text" class="text-[10px] font-mono tracking-wider text-txt-secondary uppercase">Query Stored</span>
+                            <div id="rag-btn-loader" class="hidden ml-2"><div class="w-3 h-3 border-2 border-txt-muted border-t-txt-primary rounded-full animate-spin"></div></div>
+                        </button>
+
+                        <!-- Agent Pipeline Status -->
+                        <div id="agent-pipeline" class="hidden pt-2 border-t border-base-border mt-4">
+                            <h3 class="text-[9px] font-bold font-mono text-txt-dim uppercase tracking-widest mb-2">Execution Pipeline</h3>
+                            <div class="space-y-[2px]" id="agent-status-list">
+                                <!-- Pipeline items auto-generate here -->
                             </div>
-                            <p class="mt-4 text-lg font-semibold text-gray-600">Generating Analysis...</p>
-                            <p class="text-sm text-gray-500">This may take a moment. Please wait.</p>
                         </div>
-                        <div id="error-message" class="hidden text-center text-red-600 bg-red-50 p-4 rounded-md"></div>
                     </div>
                 </div>
 
+                <!-- ═══ CENTER: Insight Dashboard ═══ -->
+                <div class="lg:col-span-7">
+                    <div class="ws-card-flush min-h-[85vh] flex flex-col">
+                        <!-- Tab Bar -->
+                        <div class="flex border-b border-base-border overflow-x-auto bg-base-elevated px-2" id="tab-bar">
+                            <button class="tab-btn active font-mono text-[10px]" data-tab="synthesis">Synthesis_Log</button>
+                            <button class="tab-btn font-mono text-[10px]" data-tab="forensic">Forensic_Audit</button>
+                            <button class="tab-btn font-mono text-[10px]" data-tab="financial">Financial_Data</button>
+                            <button class="tab-btn font-mono text-[10px]" data-tab="sources">Source_Store</button>
+                        </div>
+
+                        <!-- Panel Bodies -->
+                        <div class="flex-1 relative bg-base-bg">
+                            
+                            <!-- Tab: Synthesis (default) -->
+                            <div class="tab-content active p-4 sm:p-5" id="tab-synthesis">
+                                <!-- Placeholder state -->
+                                <div id="report-placeholder" class="text-center py-24">
+                                    <div class="w-12 h-12 border border-base-border bg-base-elevated flex items-center justify-center mx-auto mb-4">
+                                        <span class="text-accent-brand font-mono font-bold">>_</span>
+                                    </div>
+                                    <h2 class="text-sm font-mono font-bold text-txt-primary uppercase tracking-widest mb-1">System Ready</h2>
+                                    <p class="text-[10px] font-mono text-txt-secondary max-w-sm mx-auto uppercase">Awaiting target parameters for MAS initialization.</p>
+                                </div>
+
+                                <!-- Live Terminal Feed -->
+                                <div id="live-terminal" class="hidden font-mono border border-base-border bg-[#0a0f18] p-4 rounded-sm">
+                                    <div class="flex items-center justify-between mb-4 border-b border-base-border pb-2">
+                                        <span class="text-[10px] text-txt-muted uppercase tracking-widest">> Terminal Subsystem Status</span>
+                                        <span class="text-[10px] text-accent-brand" id="live-counter">[ 0 / 5 ] THREADS</span>
+                                    </div>
+                                    <div id="live-agent-feed" class="space-y-3"></div>
+                                </div>
+
+                                <!-- Insight Dashboard (Final Report) -->
+                                <div id="insight-dashboard" class="hidden">
+                                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4" id="insight-cards"></div>
+                                    <div id="report-content" class="report-prose px-1"></div>
+                                </div>
+
+                                <!-- Loader -->
+                                <div id="report-loader" class="hidden text-center py-20 font-mono">
+                                    <div class="w-8 h-8 mx-auto border-2 border-base-border border-t-accent-brand animate-spin mb-4"></div>
+                                    <p class="text-[11px] text-txt-primary uppercase tracking-wider" id="loader-stage">> INITIALIZING...</p>
+                                </div>
+                                <div id="error-message" class="hidden text-center p-3 mt-4 text-[10px] font-mono text-semantic-red border border-semantic-red bg-semantic-redDim uppercase tracking-wide"></div>
+                            </div>
+
+                            <!-- Tab: Forensic Audit -->
+                            <div class="tab-content p-4" id="tab-forensic">
+                                <div id="forensic-tab-content" class="space-y-3">
+                                    <p class="text-[10px] font-mono text-txt-dim text-center py-10 uppercase">> NO_DATA_AVAILABLE</p>
+                                </div>
+                            </div>
+
+                            <!-- Tab: Financial Data -->
+                            <div class="tab-content p-4" id="tab-financial">
+                                <div id="screener-container">
+                                    <p class="text-[10px] font-mono text-txt-dim text-center py-10 uppercase">> AWAITING_TICKER_FOR_SCREENER_PULL</p>
+                                </div>
+                            </div>
+
+                            <!-- Tab: Source Docs -->
+                            <div class="tab-content p-4" id="tab-sources">
+                                <div id="sources-content">
+                                    <p class="text-[10px] font-mono text-txt-dim text-center py-10 uppercase">> NO_DOCUMENTS_INDEXED</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ RIGHT: AI Copilot ═══ -->
+                <div class="lg:col-span-3">
+                    <div class="ws-card-flush copilot-panel" id="chat-panel">
+                        <div class="px-3 py-2 border-b border-base-border bg-base-elevated flex items-center justify-between">
+                            <h3 class="text-[10px] font-mono font-bold text-txt-primary uppercase tracking-widest">Sys_Query</h3>
+                            <button id="chat-clear" class="text-txt-dim hover:text-accent-brand text-[9px] font-mono uppercase tracking-widest">Flush</button>
+                        </div>
+                        <div class="copilot-messages" id="chat-messages">
+                            <!-- Rigid Chatbot Tone Initialized by JS -->
+                        </div>
+                        <div class="copilot-input">
+                            <span class="text-accent-brand mt-1.5">>_</span>
+                            <input type="text" id="chat-input" placeholder="Execute command..." autocomplete="off">
+                            <button id="chat-send" class="copilot-send" disabled>↵</button>
+                        </div>
+                    </div>
+
+                    <div id="triage-panel" class="ws-card p-3 mt-3 hidden">
+                        <h3 class="text-[9px] font-mono font-bold text-txt-muted uppercase tracking-widest mb-2 border-b border-base-border pb-1">Triage Kernel</h3>
+                        <div id="triage-content" class="text-[10px] font-mono text-txt-secondary"></div>
+                    </div>
+                    
+                    <div id="forensic-panel" class="ws-card p-3 mt-3 hidden">
+                        <h3 class="text-[9px] font-mono font-bold text-txt-muted uppercase tracking-widest mb-2 border-b border-base-border pb-1">Forensic Status</h3>
+                        <div id="forensic-content" class="text-[10px] font-mono"></div>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
 
+    <!-- ═══ MAIN SCRIPT ═══ -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const form = document.getElementById('report-form');
@@ -214,157 +321,299 @@
             const generateBtn = document.getElementById('generate-btn');
             const btnText = document.getElementById('btn-text');
             const btnLoader = document.getElementById('btn-loader');
-
-            const reportContainer = document.getElementById('report-container');
             const reportPlaceholder = document.getElementById('report-placeholder');
             const reportContent = document.getElementById('report-content');
             const reportLoader = document.getElementById('report-loader');
+            const loaderStage = document.getElementById('loader-stage');
             const errorMessage = document.getElementById('error-message');
             const exportPdfBtn = document.getElementById('export-pdf-btn');
+            const agentPipeline = document.getElementById('agent-pipeline');
+            const agentStatusList = document.getElementById('agent-status-list');
+            const liveTerminal = document.getElementById('live-terminal');
+            const liveAgentFeed = document.getElementById('live-agent-feed');
+            const liveCounter = document.getElementById('live-counter');
+            const insightDashboard = document.getElementById('insight-dashboard');
+            const insightCards = document.getElementById('insight-cards');
 
-            const markdownConverter = new showdown.Converter();
+            // ── Markdown Extensions ──
+            const terminalStylesExt = {
+                type: 'output',
+                filter: function (text) {
+                    return text.replace(/\[([^<>\]\n]{1,50})\]/g, '<span class="calc-badge">[$1]</span>');
+                }
+            };
+            
+            const semanticExt = {
+                type: 'output',
+                filter: function (text) {
+                    // Highlight [DATA WARNING] and DATA UNAVAILABLE
+                    text = text.replace(/\[DATA WARNING\]/g, '<span class="bg-semantic-amber/20 text-semantic-amber px-1.5 py-[1px] rounded-sm border border-semantic-amber/50 font-bold text-[10px] tracking-wide font-mono inline-block mb-1">[DATA WARNING]</span>');
+                    text = text.replace(/DATA UNAVAILABLE/g, '<span class="bg-semantic-amber/20 text-semantic-amber px-1.5 py-[1px] rounded-sm border border-semantic-amber/50 font-bold text-[10px] tracking-wide font-mono inline-block">DATA UNAVAILABLE</span>');
 
-            // --- File Upload Logic ---
+                    // Highlight positive growth metrics
+                    text = text.replace(/(gaining|up|increase[d]?|growth|positive|gains?)\s+([^\s<]*?(?:\d+\.?\d*[%x]?|bps|mn|cr))\b/gi, '$1 <span class="text-semantic-green font-mono font-bold">$2</span>');
+                    
+                    // Highlight negative growth metrics
+                    text = text.replace(/(declining|down|decrease[d]?|negative|drop|loss|falling|contraction)\s+([^\s<]*?(?:\d+\.?\d*[%x]?|bps|mn|cr))\b/gi, '$1 <span class="text-semantic-red font-mono font-bold">$2</span>');
 
-            // Handle clicks on the drop zone to trigger file input
+                    return text;
+                }
+            };
+
+            const markdownConverter = new showdown.Converter({ extensions: [terminalStylesExt, semanticExt] });
+            window.terminalStylesExt = terminalStylesExt;
+            window.semanticExt = semanticExt;
+
+            // ── Tab Switching ──
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    btn.classList.add('active');
+                    document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+                });
+            });
+
+            function switchTab(tabName) {
+                document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('active'); if (b.dataset.tab === tabName) b.classList.add('active'); });
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                document.getElementById(`tab-${tabName}`).classList.add('active');
+            }
+
+            // ── Screener Fetch ──
+            async function fetchAndRenderScreener(ticker) {
+                const container = document.getElementById('screener-container');
+                container.innerHTML = '<div class="flex items-center gap-2 text-[11px] font-mono text-accent-brandLight animate-pulse py-4"><span class="w-2 h-2 rounded-none bg-accent-brand"></span>>_ Fetching quantitative datasets...</div>';
+                try {
+                    const res = await fetch(`/api/screener_data?ticker=${ticker}`);
+                    if (!res.ok) throw new Error('Screener fetch failed');
+                    const data = await res.json();
+                    if (!data.tables || Object.keys(data.tables).length === 0) {
+                        container.innerHTML = '<p class="text-[10px] font-mono text-txt-dim py-6 text-center uppercase">> ERR: No quantitative datasets located.</p>';
+                        return;
+                    }
+                    let html = '<div class="space-y-6">';
+                    for (const [title, rows] of Object.entries(data.tables)) {
+                        html += `<div><h3 class="text-[11px] font-bold font-mono text-txt-primary mb-2 tracking-widest uppercase border-l-2 border-accent-brand pl-2">${title}</h3>`;
+                        html += '<div class="overflow-x-auto rounded-sm border border-base-border"><table class="data-table">';
+                        if (rows.length > 0) {
+                            html += '<thead><tr>';
+                            for (const key of Object.keys(rows[0])) {
+                                const dk = key === "Unnamed: 0" || key === "Line Item" ? "Line Item" : key;
+                                html += `<th>${dk}</th>`;
+                            }
+                            html += '</tr></thead><tbody>';
+                            for (const row of rows) {
+                                html += '<tr>';
+                                let isFirst = true;
+                                for (const [key, val] of Object.entries(row)) {
+                                    const cv = val === null || val === "NaN" || Number.isNaN(val) ? "" : val;
+                                    const isLineItem = key === "Line Item" || key === "Unnamed: 0" || isFirst;
+                                    if (isLineItem) {
+                                        html += `<td class="line-item">${cv}</td>`;
+                                    } else {
+                                        html += `<td class="num">${cv}</td>`;
+                                    }
+                                    isFirst = false;
+                                }
+                                html += '</tr>';
+                            }
+                            html += '</tbody>';
+                        }
+                        html += '</table></div></div>';
+                    }
+                    html += '</div>';
+                    container.innerHTML = html;
+                } catch (err) {
+                    console.error('Screener error:', err);
+                    container.innerHTML = '<p class="text-[10px] font-mono text-semantic-red py-4 uppercase">>_ DATALINK_ERROR</p>';
+                }
+            }
+
+            // ── Stage mapping ──
+            const stageLabels = {
+                extract_pdfs: 'Extracting_PDF_Data',
+                fetch_financials: 'Ingesting_Financials',
+                planning: 'Generating_Strategic_Plan',
+                parallel_execution: 'Executing_Agent_Mesh',
+                reflection: 'Running_Reflection_Loop',
+                conflict_check: 'Resolving_Discrepancies',
+                synthesis: 'Synthesizing_CIO_Report',
+            };
+            const allAgents = ['extract_pdfs', 'planning', 'fsa_quant', 'forensic_investigator', 'narrative_decoder', 'moat_architect', 'capital_allocator', 'synthesis'];
+
+            function initAgentDots() {
+                agentStatusList.innerHTML = '';
+                allAgents.forEach(s => {
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center gap-2 py-1';
+                    const iconBox = document.createElement('div');
+                    iconBox.id = `icon-${s}`;
+                    iconBox.className = 'w-4 h-4 flex items-center justify-center';
+                    iconBox.innerHTML = '<span class="text-[10px] text-txt-dim font-bold">-</span>'; // Idle
+                    
+                    const textSpan = document.createElement('span');
+                    textSpan.id = `text-${s}`;
+                    textSpan.className = 'text-[9px] font-mono text-txt-dim uppercase tracking-widest';
+                    textSpan.textContent = stageLabels[s] || s;
+
+                    div.appendChild(iconBox);
+                    div.appendChild(textSpan);
+                    agentStatusList.appendChild(div);
+                });
+            }
+
+            function updateAgentDots(meta) {
+                const active = meta.active_agents || [];
+                const completed = meta.completed_agents || [];
+                allAgents.forEach(s => {
+                    const iconBox = document.getElementById(`icon-${s}`);
+                    const text = document.getElementById(`text-${s}`);
+                    if (!iconBox || !text) return;
+                    
+                    if (completed.includes(s)) {
+                        iconBox.innerHTML = '<span class="text-[10px] text-txt-muted font-bold font-mono">✓</span>';
+                        text.className = 'text-[9px] font-mono text-txt-muted uppercase tracking-widest';
+                    } else if (active.includes(s)) {
+                        iconBox.innerHTML = '<div class="w-3 h-3 border border-base-border border-t-accent-brand rounded-full animate-spin"></div>';
+                        text.className = 'text-[9px] font-mono text-accent-brand uppercase tracking-widest font-bold';
+                    } else {
+                        iconBox.innerHTML = '<span class="text-[10px] text-txt-dim font-bold">-</span>';
+                        text.className = 'text-[9px] font-mono text-txt-dim uppercase tracking-widest';
+                    }
+                });
+            }
+
+            function completeAllAgentDots() {
+                allAgents.forEach(s => {
+                    const iconBox = document.getElementById(`icon-${s}`);
+                    const text = document.getElementById(`text-${s}`);
+                    if (!iconBox || !text) return;
+                    iconBox.innerHTML = '<span class="text-[10px] text-txt-secondary font-bold font-mono">✓</span>';
+                    text.className = 'text-[9px] font-mono text-txt-secondary uppercase tracking-widest';
+                });
+            }
+
+            // ── File Upload ──
             dropZone.addEventListener('click', () => fileInput.click());
-
-            // Handle file selection
-            fileInput.addEventListener('change', () => {
-                handleFiles(fileInput.files);
-            });
-
-            // Handle drag and drop
-            dropZone.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                dropZone.classList.add('border-indigo-500', 'bg-indigo-50');
-            });
-            dropZone.addEventListener('dragleave', (e) => {
-                e.preventDefault();
-                dropZone.classList.remove('border-indigo-500', 'bg-indigo-50');
-            });
-            dropZone.addEventListener('drop', (e) => {
-                e.preventDefault();
-                dropZone.classList.remove('border-indigo-500', 'bg-indigo-50');
-                fileInput.files = e.dataTransfer.files;
-                handleFiles(fileInput.files);
-            });
+            fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+            dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('border-accent-brand'); });
+            dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove('border-accent-brand'); });
+            dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('border-accent-brand'); fileInput.files = e.dataTransfer.files; handleFiles(fileInput.files); });
 
             function handleFiles(files) {
                 fileList.innerHTML = '';
-                if (files.length === 0) {
-                    fileList.innerHTML = '<p class="text-red-500">No files selected.</p>';
+                const sourcesContainer = document.getElementById('sources-content');
+                
+                if (!files.length) {
+                    if (sourcesContainer) {
+                        sourcesContainer.innerHTML = '<p class="text-[10px] font-mono text-txt-dim text-center py-10 uppercase">> NO_DOCUMENTS_INDEXED</p>';
+                    }
                     return;
                 }
-                const list = document.createElement('ul');
-                list.className = 'space-y-1';
+                
+                const list = document.createElement('div');
+                list.className = 'space-y-[2px] mt-2';
+                let sourceStoreHtml = '<div class="space-y-2">';
+                
                 for (const file of files) {
-                    const listItem = document.createElement('li');
-                    listItem.textContent = `📄 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
-                    list.appendChild(listItem);
+                    const item = document.createElement('div');
+                    item.className = 'flex items-center gap-1.5 text-[9px] bg-base-elevated px-2 py-1 border border-base-border';
+                    item.innerHTML = `<span class="text-accent-brand">>_</span><span class="text-txt-secondary truncate flex-1 uppercase">${file.name}</span><span class="text-txt-dim">${(file.size/1024/1024).toFixed(1)}MB</span>`;
+                    list.appendChild(item);
+                    
+                    sourceStoreHtml += `
+                        <div class="p-3 border border-base-border bg-base-elevated flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="text-accent-brand font-mono text-[11px]">>_</span>
+                                <span class="font-mono text-[10px] text-txt-primary uppercase">${file.name}</span>
+                            </div>
+                            <span class="font-mono text-[9px] px-1.5 py-0.5 border border-base-border bg-base-bg text-txt-dim uppercase tracking-widest text-accent-brand">INDEXED</span>
+                        </div>
+                    `;
                 }
+                
+                sourceStoreHtml += '</div>';
                 fileList.appendChild(list);
+                if (sourcesContainer) {
+                    sourcesContainer.innerHTML = sourceStoreHtml;
+                }
             }
 
-            // --- Form Submission Logic ---
-            form.addEventListener('submit', async (e) => {
+            // ── Form Submit ──
+            initAgentDots();
+            form.addEventListener('submit', async e => {
                 e.preventDefault();
-
-                // Reset UI state for async processing
-                setLoadingState(true);
-                reportPlaceholder.classList.add('hidden');
-                reportContent.innerHTML = '';
-                reportLoader.classList.remove('hidden');
-                errorMessage.classList.add('hidden');
-                errorMessage.textContent = '';
-                exportPdfBtn.classList.add('hidden');
-
+                startAnalysis('upload');
                 const formData = new FormData();
                 formData.append('ticker', tickerInput.value.trim());
-
-                if (fileInput.files.length === 0) {
-                    displayError("Please select at least one PDF file.");
-                    setLoadingState(false);
-                    return;
-                }
-
-                for (const file of fileInput.files) {
-                    formData.append('files', file);
-                }
-
+                if (!fileInput.files.length) { displayError("NO_PDFS_INDEXED"); setLoadingState(false); return; }
+                for (const file of fileInput.files) formData.append('files', file);
                 try {
-                    const response = await fetch('/generate_report', { method: 'POST', body: formData });
-                    if (!response.ok) {
-                        let msg = `Server responded with status: ${response.status}`;
-                        try { const errJson = await response.json(); msg = errJson.error || msg; } catch {}
-                        throw new Error(msg);
-                    }
-                    const { job_id } = await response.json();
+                    const resp = await fetch('/generate_report', { method: 'POST', body: formData });
+                    if (!resp.ok) { let msg = `Status: ${resp.status}`; try { const e = await resp.json(); msg = e.error || msg; } catch {} throw new Error(msg); }
+                    const { job_id } = await resp.json();
                     pollJob(job_id);
-                } catch (error) {
-                    console.error('Enqueue error:', error);
-                    displayError(error.message || 'Failed to start report generation.');
+                } catch (err) {
+                    displayError(err.message || 'Execution Fault.');
                     setLoadingState(false);
                 }
             });
 
-            const stageLabels = {
-                extract_pdfs: 'Extracting PDF text',
-                fetch_financials: 'Fetching financial statements',
-                business_model: 'Analyzing business model',
-                quarterly_updates: 'Summarizing quarterly updates',
-                management_commentary: 'Summarizing management commentary',
-                risks: 'Identifying risks',
-                prompt_set: 'Generating prompt set',
-                assumptions: 'Deriving assumptions',
-                projections: 'Building projections',
-                assemble: 'Assembling final report'
-            };
+            function startAnalysis(mode) {
+                setLoadingState(true);
+                reportPlaceholder.classList.add('hidden');
+                liveTerminal.classList.remove('hidden');
+                liveAgentFeed.innerHTML = '';
+                insightDashboard.classList.add('hidden');
+                reportContent.innerHTML = '';
+                agentPipeline.classList.remove('hidden');
+                initAgentDots();
+                hideAllPanels();
+                reportLoader.classList.remove('hidden');
+                errorMessage.classList.add('hidden');
+                exportPdfBtn.classList.add('hidden');
+                liveCounter.textContent = '[ 0 / 5 ] THREADS';
+                switchTab('synthesis');
+                fetchAndRenderScreener(tickerInput.value.trim());
 
+                // Reset Copilot
+                document.getElementById('chat-messages').innerHTML = `
+                    <div class="chat-msg assistant">
+                        <div class="chat-bubble font-mono text-[10px] text-txt-dim uppercase">> SYSTEM_READY.<br>> INDEXED: ${tickerInput.value.trim().toUpperCase()}<br>> Awaiting query...</div>
+                    </div>`;
+            }
+
+            // ── Polling ──
             async function pollJob(jobId) {
                 let attempts = 0;
-                const maxAttempts = 600; // ~30 mins @ 3s interval
-                const intervalMs = 3000;
-
+                const maxAttempts = 600;
                 async function check() {
                     attempts++;
                     try {
                         const res = await fetch(`/job_status/${jobId}`);
                         if (!res.ok) throw new Error(`Status ${res.status}`);
                         const data = await res.json();
-
                         if (data.status === 'completed') {
-                            // Backend returns {status, result: {...}}
-                            renderReport(data.result || {});
+                            const result = data.result || {};
+                            if (!result.final_report && data.progress && data.progress.final_report) {
+                                result.final_report = data.progress.final_report;
+                            }
+                            renderReport(result);
                             exportPdfBtn.classList.remove('hidden');
+                            exportPdfBtn.classList.add('flex');
                             setLoadingState(false);
+                            completeAllAgentDots();
                             return;
                         }
-                        if (data.status === 'failed') {
-                            displayError('Job failed. See logs.');
-                            setLoadingState(false);
-                            return;
-                        }
-                        if (data.status === 'error') {
-                            displayError(data.error || 'Error retrieving job status');
-                            setLoadingState(false);
-                            return;
-                        }
-
-                        // Still running / queued
+                        if (data.status === 'failed') { displayError('PIPELINE_FAILED'); setLoadingState(false); return; }
+                        if (data.status === 'error') { displayError(data.error || 'SYS_ERR'); setLoadingState(false); return; }
                         updateProgress(data.progress || {});
-                        if (attempts < maxAttempts) setTimeout(check, intervalMs);
-                        else {
-                            displayError('Stopped polling (timeout).');
-                            setLoadingState(false);
-                        }
+                        if (attempts < maxAttempts) setTimeout(check, 3000);
+                        else { displayError('TIMEOUT_ERR'); setLoadingState(false); }
                     } catch (err) {
-                        console.warn('Polling error:', err);
-                        if (attempts < maxAttempts) setTimeout(check, intervalMs * 2);
-                        else {
-                            displayError('Polling aborted due to repeated errors.');
-                            setLoadingState(false);
-                        }
+                        if (attempts < maxAttempts) setTimeout(check, 6000);
+                        else { displayError('POLLING_ABORT'); setLoadingState(false); }
                     }
                 }
                 check();
@@ -372,88 +621,369 @@
 
             function updateProgress(meta) {
                 const stage = meta.stage || 'queued';
-                const label = stageLabels[stage] || (stage === 'queued' ? 'Queued' : stage);
-                reportLoader.querySelector('p.mt-4').textContent = label + '...';
+                const label = stageLabels[stage] || stage;
+                loaderStage.textContent = '> ' + label.toUpperCase() + '...';
+                updateAgentDots(meta);
+                renderPartialReport(meta);
+            }
+
+            // ── Live Streaming Feed ──
+            const agentLabels = {
+                fsa_quant: { name: 'FSA Quant', type: 'quant' },
+                forensic_investigator: { name: 'Forensic Investigator', type: 'forensic' },
+                narrative_decoder: { name: 'Narrative Decoder', type: 'nlp' },
+                moat_architect: { name: 'Moat Architect', type: 'nlp' },
+                capital_allocator: { name: 'Capital Allocator', type: 'quant' },
+            };
+
+            function renderPartialReport(meta) {
+                if (meta.final_report) {
+                    liveTerminal.classList.add('hidden');
+                    reportLoader.classList.add('hidden');
+                    insightDashboard.classList.remove('hidden');
+                    reportContent.innerHTML = markdownConverter.makeHtml(meta.final_report);
+                    populateForensicTab(meta.agent_outputs);
+                    return;
+                }
+
+                if (meta.agent_outputs && Object.keys(meta.agent_outputs).length > 0) {
+                    reportLoader.classList.add('hidden');
+                    liveTerminal.classList.remove('hidden');
+
+                    for (const [agentName, output] of Object.entries(meta.agent_outputs)) {
+                        const cardId = `live-card-${agentName}`;
+                        let card = document.getElementById(cardId);
+                        const info = agentLabels[agentName] || { name: agentName, type: 'other' };
+                        const borderColor = info.type === 'quant' ? 'border-l-accent-brand' : info.type === 'forensic' ? 'border-l-semantic-red' : 'border-l-semantic-green';
+
+                        if (!card) {
+                            card = document.createElement('div');
+                            card.id = cardId;
+                            card.className = `ws-card overflow-hidden animate-fadeUp border-l-2 ${borderColor}`;
+                            liveAgentFeed.appendChild(card);
+                        }
+
+                        card.innerHTML = `
+                            <div class="flex items-center justify-between px-3 py-1.5 bg-base-elevated border-b border-base-border">
+                                <span class="text-[10px] font-mono font-bold text-txt-primary uppercase tracking-widest">${info.name}_THREAD</span>
+                                <span class="text-[9px] font-mono text-txt-dim uppercase bg-base-bg px-1 border border-base-border">DONE_</span>
+                            </div>
+                            <div class="px-4 py-3 text-[10px] text-txt-muted leading-relaxed max-h-[150px] overflow-y-auto report-prose font-mono">
+                                ${markdownConverter.makeHtml(output)}
+                            </div>
+                        `;
+                    }
+
+                    const completed = meta.completed_agents || [];
+                    const total = 5;
+                    const agentsDone = completed.filter(a => a !== 'planning').length;
+                    liveCounter.textContent = `[ ${agentsDone} / ${total} ] THREADS`;
+                }
+            }
+
+            function populateForensicTab(agentOutputs) {
+                if (!agentOutputs) return;
+                const container = document.getElementById('forensic-tab-content');
+                container.innerHTML = '';
+                for (const [name, output] of Object.entries(agentOutputs)) {
+                    const info = agentLabels[name] || { name };
+                    const div = document.createElement('div');
+                    div.className = 'ws-card overflow-hidden animate-fadeUp';
+                    div.innerHTML = `
+                        <div class="px-4 py-2 bg-base-elevated border-b border-base-border">
+                            <span class="text-[10px] font-mono font-bold text-txt-primary uppercase tracking-widest">${info.name}_KERNEL</span>
+                        </div>
+                        <div class="px-4 py-3 text-xs text-txt-secondary leading-relaxed max-h-[300px] overflow-y-auto report-prose">
+                            ${markdownConverter.makeHtml(output)}
+                        </div>
+                    `;
+                    container.appendChild(div);
+                }
+            }
+
+            function renderTriagePanel(triage) {
+                const panel = document.getElementById('triage-panel');
+                const content = document.getElementById('triage-content');
+                if (!panel || panel.dataset.rendered) return;
+                let html = '';
+                if (triage.passed) {
+                    html += '<div class="mb-2"><span class="risk-badge risk-low uppercase text-[9px]">PASSED_CHECK</span></div>';
+                } else {
+                    html += '<div class="mb-2"><span class="risk-badge risk-high uppercase text-[9px]">FAILED_CHECK</span></div>';
+                    (triage.kill_reasons || []).forEach(r => { html += `<p class="text-semantic-red ml-2 mb-1 text-[10px] font-mono">>> ${r}</p>`; });
+                }
+                if (triage.warnings?.length) {
+                    html += '<p class="text-semantic-amber font-mono mt-2 mb-1 text-[9px] uppercase tracking-widest">> WARNINGS_LOGGED:</p>';
+                    triage.warnings.forEach(w => { html += `<p class="text-semantic-amber/70 ml-2 mb-1 text-[10px] font-mono">- ${w}</p>`; });
+                }
+                content.innerHTML = html;
+                panel.classList.remove('hidden');
+                panel.dataset.rendered = 'true';
+            }
+
+            function renderForensicPanel(scorecard) {
+                const panel = document.getElementById('forensic-panel');
+                const content = document.getElementById('forensic-content');
+                if (!panel || panel.dataset.rendered) return;
+                const p = scorecard.profitability || {};
+                const eq = scorecard.earnings_quality || {};
+                const lev = scorecard.leverage || {};
+                const dp = scorecard.dupont || {};
+                let html = '<div class="grid grid-cols-2 gap-1">';
+                if (p.roe_latest != null) html += `<div class="bg-base-elevated p-2 border border-base-border"><div class="text-[8px] uppercase font-mono text-txt-dim tracking-widest mb-1">ROE</div><div class="text-[11px] font-mono text-accent-brand">${(p.roe_latest * 100).toFixed(1)}%</div></div>`;
+                if (eq.quality_grade) {
+                    const col = eq.quality_grade === 'HIGH' ? 'text-semantic-green' : eq.quality_grade === 'LOW' ? 'text-semantic-red' : 'text-semantic-amber';
+                    html += `<div class="bg-base-elevated p-2 border border-base-border"><div class="text-[8px] uppercase font-mono text-txt-dim tracking-widest mb-1">Earnings Q.</div><div class="text-[11px] font-mono ${col}">${eq.quality_grade}</div></div>`;
+                }
+                if (lev.net_debt_ebitda != null) html += `<div class="bg-base-elevated p-2 border border-base-border"><div class="text-[8px] uppercase font-mono text-txt-dim tracking-widest mb-1">Net D/EBITDA</div><div class="text-[11px] font-mono text-txt-primary">${lev.net_debt_ebitda}x</div></div>`;
+                if (dp.roe_driver) html += `<div class="bg-base-elevated p-2 border border-base-border col-span-2"><div class="text-[8px] uppercase font-mono text-txt-dim tracking-widest mb-1">ROE Driver</div><div class="text-[10px] font-mono text-accent-brand">${dp.roe_driver}</div></div>`;
+                html += '</div>';
+                if (scorecard.flags?.length) {
+                    html += '<div class="mt-2 pt-2 border-t border-base-border">';
+                    html += '<p class="text-semantic-amber font-mono font-bold mb-1 text-[9px] uppercase tracking-widest">> DETECTED_FLAGS</p>';
+                    scorecard.flags.forEach(f => { html += `<p class="text-semantic-amber/70 mb-0.5 text-[10px] font-mono">- ${f}</p>`; });
+                    html += '</div>';
+                }
+                content.innerHTML = html;
+                panel.classList.remove('hidden');
+                panel.dataset.rendered = 'true';
+            }
+
+            function renderThesisPanel(thesis) {
+                // Not using thesis panel heavily anymore, but keeping for compatibility
+                hideAllPanels();
+            }
+
+            function hideAllPanels() {
+                ['triage-panel', 'forensic-panel'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) { el.classList.add('hidden'); delete el.dataset.rendered; }
+                });
             }
 
             function setLoadingState(isLoading) {
                 generateBtn.disabled = isLoading;
-                if (isLoading) {
-                    btnText.classList.add('hidden');
-                    btnLoader.classList.remove('hidden');
-                } else {
-                    btnText.classList.remove('hidden');
-                    btnLoader.classList.add('hidden');
-                    reportLoader.classList.add('hidden');
+                if (isLoading) { btnText.classList.add('hidden'); btnLoader.classList.remove('hidden'); }
+                else {
+                    btnText.classList.remove('hidden'); btnLoader.classList.add('hidden'); reportLoader.classList.add('hidden');
+                    const ragL = document.getElementById('rag-btn-loader');
+                    const ragT = document.getElementById('rag-btn-text');
+                    const ragB = document.getElementById('rag-analyze-btn');
+                    if (ragL) ragL.classList.add('hidden');
+                    if (ragT) ragT.classList.remove('hidden');
+                    if (ragB) ragB.disabled = false;
                 }
             }
 
             function displayError(message) {
                 reportLoader.classList.add('hidden');
+                liveTerminal.classList.add('hidden');
+                insightDashboard.classList.add('hidden');
                 reportPlaceholder.classList.add('hidden');
-                errorMessage.textContent = `Error: ${message}`;
+                errorMessage.textContent = `> FATAL_ERR: ${message}`;
                 errorMessage.classList.remove('hidden');
+            }
+
+            function renderSourceStore(stats) {
+                const container = document.getElementById('sources-content');
+                if (!container || !stats) return;
+                
+                // If it already has indexed files from the upload handler, we just append or prepend the chunk stats
+                let existingHtml = container.innerHTML;
+                if (existingHtml.includes('NO_DOCUMENTS_INDEXED')) {
+                    existingHtml = '';
+                }
+                
+                const docTypes = stats.doc_types && stats.doc_types.length > 0 
+                  ? stats.doc_types.join(', ') 
+                  : 'DOCUMENTS';
+                  
+                const headerHtml = `<div class="mb-4 pb-2 border-b border-base-border flex justify-between items-center">
+                    <span class="text-[9px] font-mono text-txt-dim uppercase tracking-widest">> RAG_STORE_STATS</span>
+                    <span class="text-[9px] font-mono text-accent-brand uppercase tracking-widest font-bold">${stats.total_chunks || 0} CHUNKS SECURED</span>
+                </div>`;
+                
+                if (existingHtml === '') {
+                    // For RAG-only querying where we didn't upload files this session
+                    container.innerHTML = headerHtml + `
+                        <div class="p-3 border border-base-border bg-base-elevated flex items-center justify-between">
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-accent-brand font-mono text-[11px]">>_</span>
+                                    <span class="font-mono text-[10px] text-txt-primary uppercase">CLOUD_STORE_TYPES: ${docTypes}</span>
+                                </div>
+                            </div>
+                            <span class="font-mono text-[9px] px-1.5 py-0.5 border border-base-border bg-base-bg text-txt-dim uppercase tracking-widest text-accent-brand">INDEXED</span>
+                        </div>
+                    `;
+                } else {
+                    // We already have files, just prepend the stats
+                    container.innerHTML = headerHtml + existingHtml;
+                }
             }
 
             function renderReport(data) {
                 reportLoader.classList.add('hidden');
-                reportContent.innerHTML = `
-                    <h1 class="text-3xl font-bold mb-6 text-gray-900 border-b-2 pb-3">Financial Analysis Report: ${tickerInput.value.toUpperCase()}</h1>
-                    
-                    <div id="businessModel">
-                        <h2>1. Business Model Summary</h2>
-                        ${markdownConverter.makeHtml(data.businessModel || 'Not available.')}
-                    </div>
-                    
-                    <div id="keyQuarterlyUpdates">
-                        <h2>2. Key Quarterly Updates</h2>
-                        ${markdownConverter.makeHtml(data.keyQuarterlyUpdates || 'Not available.')}
-                    </div>
-
-                    <div id="managementCommentary">
-                        <h2>3. Management Commentary Insights</h2>
-                        ${markdownConverter.makeHtml(data.managementCommentary || 'Not available.')}
-                    </div>
-
-                    <div id="financialProjections">
-                        <h2>4. AI-Powered Financial Projections</h2>
-                        ${data.financialProjections || '<p>Projections not available.</p>'}
-                    </div>
-                    
-                    <div id="risksUncertainties">
-                        <h2>5. Risks & Uncertainties</h2>
-                        ${markdownConverter.makeHtml(data.risksUncertainties || 'Not available.')}
-                    </div>
-
-                    <div id="promptSet">
-                        <h2>6. AI Prompt Set for Deeper Analysis</h2>
-                        ${markdownConverter.makeHtml(data.promptSet || 'Not available.')}
-                    </div>
-
-                    <div class="mt-8 text-xs text-gray-500 text-center border-t pt-4">
-                        <p><strong>Disclaimer:</strong> This report was generated using AI models based on publicly available data. It is intended for informational purposes only and is not investment advice. Please verify any forward-looking statements with official company filings.</p>
-                    </div>
-                `;
+                renderPartialReport(data);
+                if (!document.getElementById('report-disclaimer')) {
+                    const disc = document.createElement('div');
+                    disc.id = 'report-disclaimer';
+                    disc.className = "mt-8 text-[10px] font-mono text-txt-dim border-t border-base-border pt-4 px-2 tracking-wide";
+                    disc.innerHTML = '<p>> SYSTEM_DISCLAIMER: Generative output via MAS logic. NOT INVESTMENT ADVICE. End_Transmission.</p>';
+                    reportContent.appendChild(disc);
+                }
+                // Render additional panels if structured data exists
+                if (data.triage_result) renderTriagePanel(data.triage_result);
+                if (data.forensic_scorecard) renderForensicPanel(data.forensic_scorecard);
+                if (data.rag_stats) renderSourceStore(data.rag_stats);
             }
 
-            // --- PDF Export Logic ---
-            exportPdfBtn.addEventListener('click', () => {
+            // ── PDF Export ──
+            exportPdfBtn.addEventListener('click', async () => {
                 const element = document.getElementById('report-content');
-                const ticker = tickerInput.value || 'report';
-                const opt = {
-                    margin: 0.5,
-                    filename: `${ticker}_Financial_Analysis.pdf`,
-                    image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: { scale: 2, useCORS: true },
-                    jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-                };
-
-                html2pdf().set(opt).from(element).save();
+                if (!element) return;
+                const originalText = exportPdfBtn.innerHTML;
+                exportPdfBtn.innerHTML = '<div class="w-3 h-3 border border-accent-brand/30 border-t-accent-brand rounded-full animate-spin mr-1.5"></div>GENERATING...';
+                exportPdfBtn.disabled = true;
+                try {
+                    const response = await fetch('/export_pdf', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ticker: tickerInput.value || 'REPORT', content_html: element.innerHTML })
+                    });
+                    if (!response.ok) throw new Error(`Status: ${response.status}`);
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none'; a.href = url;
+                    a.download = `${(tickerInput.value || 'REPORT').toUpperCase()}_Novus_Terminal.pdf`;
+                    document.body.appendChild(a); a.click();
+                    window.URL.revokeObjectURL(url);
+                } catch (error) {
+                    console.error('PDF Export Error:', error);
+                    alert("Failed to export: " + error.message);
+                } finally {
+                    exportPdfBtn.innerHTML = originalText;
+                    exportPdfBtn.disabled = false;
+                }
             });
 
+            // ── RAG-Only Analysis ──
+            const ragBtn = document.getElementById('rag-analyze-btn');
+            const ragBtnText = document.getElementById('rag-btn-text');
+            const ragBtnLoader = document.getElementById('rag-btn-loader');
+
+            function setRagLoadingState(isLoading) {
+                ragBtn.disabled = isLoading;
+                generateBtn.disabled = isLoading;
+                if (isLoading) { ragBtnText.classList.add('hidden'); ragBtnLoader.classList.remove('hidden'); }
+                else { ragBtnText.classList.remove('hidden'); ragBtnLoader.classList.add('hidden'); }
+            }
+
+            ragBtn.addEventListener('click', async () => {
+                const ticker = tickerInput.value.trim();
+                if (!ticker) { alert('ENTER_TICKER'); return; }
+                setRagLoadingState(true);
+                startAnalysis('rag');
+                try {
+                    const resp = await fetch('/analyze_rag', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ticker }),
+                    });
+                    if (!resp.ok) { let msg = `Status: ${resp.status}`; try { const e = await resp.json(); msg = e.error || msg; } catch {} throw new Error(msg); }
+                    const { job_id } = await resp.json();
+                    pollJob(job_id);
+                } catch (err) {
+                    displayError(err.message || 'RAG Exception.');
+                    setLoadingState(false);
+                    setRagLoadingState(false);
+                }
+            });
         });
     </script>
+
+    <!-- ═══ CHAT COPILOT SCRIPT ═══ -->
+    <script>
+    (() => {
+        const chatInput = document.getElementById('chat-input');
+        const chatSend = document.getElementById('chat-send');
+        const chatMessages = document.getElementById('chat-messages');
+        const chatClear = document.getElementById('chat-clear');
+        const mainTickerInput = document.getElementById('ticker');
+        const md = new showdown.Converter(window.terminalStylesExt ? { extensions: [window.terminalStylesExt, window.semanticExt] } : {});
+
+        let chatHistory = [];
+        let isSending = false;
+
+        chatInput.addEventListener('input', () => { chatSend.disabled = !chatInput.value.trim() || isSending; });
+        chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !chatSend.disabled) sendMessage(); });
+        chatSend.addEventListener('click', sendMessage);
+
+        // Initial Chat State
+        chatMessages.innerHTML = `
+            <div class="chat-msg assistant">
+                <div class="chat-bubble font-mono text-[10px] text-txt-dim uppercase">> SYSTEM_READY.<br>> Awaiting parameters...</div>
+            </div>`;
+
+        chatClear.addEventListener('click', () => {
+            chatHistory = [];
+            const t = mainTickerInput.value.trim().toUpperCase() || 'AWAITING_TICKER';
+            chatMessages.innerHTML = `<div class="chat-msg assistant"><div class="chat-bubble font-mono text-[10px] text-txt-dim uppercase">> SYSTEM_READY.<br>> INDEXED: ${t}<br>> Awaiting query...</div></div>`;
+        });
+
+        async function sendMessage() {
+            const ticker = mainTickerInput.value.trim().toUpperCase();
+            const question = chatInput.value.trim();
+            if (!ticker) { alert('NO_TICKER_DEFINED'); return; }
+            if (!question || isSending) return;
+            isSending = true; chatSend.disabled = true; chatInput.value = '';
+            appendMessage('user', question);
+            chatHistory.push({ role: 'user', content: question });
+
+            const typingEl = document.createElement('div');
+            typingEl.className = 'chat-msg assistant'; typingEl.id = 'typing-indicator';
+            typingEl.innerHTML = `<div class="chat-bubble"><div class="typing-indicator"><span></span><span></span><span></span></div></div>`;
+            chatMessages.appendChild(typingEl);
+            chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: 'smooth' });
+
+            try {
+                const resp = await fetch('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticker, question, history: chatHistory.slice(0, -1) }) });
+                const ti = document.getElementById('typing-indicator'); if (ti) ti.remove();
+                if (!resp.ok) { const err = await resp.json().catch(() => ({})); throw new Error(err.error || `Status ${resp.status}`); }
+                const data = await resp.json();
+                appendMessage('assistant', data.answer, data.sources);
+                chatHistory.push({ role: 'assistant', content: data.answer });
+            } catch (err) {
+                const ti = document.getElementById('typing-indicator'); if (ti) ti.remove();
+                appendMessage('assistant', `> ERR: ${err.message}`);
+            }
+            isSending = false; chatSend.disabled = false; chatInput.focus();
+        }
+
+        function appendMessage(role, content, sources) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `chat-msg ${role}`;
+            const bubble = document.createElement('div');
+            bubble.className = 'chat-bubble';
+            
+            // Format content with showdown
+            let htmlStr = role === 'user' ? escapeHtml(content) : md.makeHtml(content);
+            bubble.innerHTML = htmlStr;
+            msgDiv.appendChild(bubble);
+            
+            if (sources && sources.length > 0) {
+                const srcDiv = document.createElement('div');
+                srcDiv.className = 'chat-sources';
+                srcDiv.innerHTML = '> SOURCES: ' + sources.map(s => `<span title="${s.section || ''}">${s.filename} (${s.doc_type})</span>`).join(' | ');
+                msgDiv.appendChild(srcDiv);
+            }
+            chatMessages.appendChild(msgDiv);
+            chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: 'smooth' });
+        }
+
+        function escapeHtml(text) { const d = document.createElement('div'); d.textContent = text; return d.innerHTML; }
+    })();
+    </script>
 </body>
-
 </html>
-

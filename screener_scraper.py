@@ -1,0 +1,103 @@
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import logging
+from typing import Dict, Any
+from io import StringIO
+
+logger = logging.getLogger(__name__)
+
+def clean_dataframe(df: pd.DataFrame) -> list:
+    """Cleans a DataFrame and converts it into a list of dicts for JSON serialization."""
+    # Handle NaN values
+    df = df.fillna("")
+    
+    # Standardize column names (cast to string just in case)
+    df.columns = [str(c).replace('\n', ' ').strip() for c in df.columns]
+    
+    # Rename the first nameless column usually containing line items to 'Line Item'
+    if df.columns[0].strip() == "":
+        columns = list(df.columns)
+        columns[0] = "Line Item"
+        df.columns = columns
+        
+    records = df.to_dict(orient="records")
+    return records
+
+
+def fetch_screener_tables(ticker: str) -> Dict[str, Any]:
+    """
+    Fetches the main financial tables from screener.in for a given ticker.
+    Returns a dictionary of cleaned tables (Profit/Loss, Balance Sheet, Cash Flow, Ratios).
+    """
+    ticker = ticker.upper().strip()
+    url = f"https://www.screener.in/company/{ticker}/consolidated/"
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=15)
+        
+        # Fallback to standalone if consolidated doesn't exist (returns 404 sometimes)
+        if response.status_code == 404:
+            url = f"https://www.screener.in/company/{ticker}/"
+            response = requests.get(url, headers=headers, timeout=15)
+            
+        response.raise_for_status()
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch screener data for {ticker}: {e}")
+        return {"error": str(e), "tables": {}}
+
+    soup = BeautifulSoup(response.content, "html.parser")
+    
+    targets = {
+        "Quarterly Results": "quarters",
+        "Profit & Loss": "profit-loss",
+        "Balance Sheet": "balance-sheet",
+        "Cash Flows": "cash-flow",
+        "Ratios": "ratios"
+    }
+    
+    results = {}
+    
+    for title, section_id in targets.items():
+        section = soup.find("section", id=section_id)
+        if not section:
+            continue
+            
+        table = section.find("table")
+        if not table:
+            continue
+            
+        try:
+            # Wrap the string representation of the table in StringIO for modern pandas
+            html_table = str(table)
+            # Remove button/span tags that clutter the line item names
+            clean_html = html_table.replace('<button', '<div').replace('</button>', '</div>')
+            df_list = pd.read_html(StringIO(clean_html))
+            
+            if df_list:
+                df = df_list[0]
+                results[title] = clean_dataframe(df)
+        except Exception as e:
+            logger.warning(f"Could not parse table {title} for {ticker}: {e}")
+            
+    return {
+        "ticker": ticker,
+        "source": url,
+        "tables": results
+    }
+
+if __name__ == "__main__":
+    # Test execution
+    data = fetch_screener_tables("HINDUNILVR")
+    if data.get("tables"):
+        for t_name, t_data in data["tables"].items():
+            print(f"--- {t_name} ---")
+            print(f"Rows: {len(t_data)}, Columns: {len(t_data[0]) if t_data else 0}")
+    else:
+        print("No tables found or error occurred.")

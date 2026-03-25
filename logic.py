@@ -1,6 +1,7 @@
 #logic.py
 import os
-import google.generativeai as genai
+from openai import OpenAI
+from google import genai
 import fitz  # PyMuPDF
 from flask import Flask, request, jsonify, send_from_directory
 from dotenv import load_dotenv
@@ -18,19 +19,26 @@ from datetime import date, datetime, timedelta
 load_dotenv()
 
 # --- Configuration ---
+deepseek_api_key = os.getenv("DEEPSEEK_API_KEY") # DeepSeek API key from environment variable
 gemini_api_key = os.getenv("GEMINI_API_KEY") # Gemini API key from environment variable
 fmp_api_key = os.getenv("FMP_API_KEY") # Financial Modeling Prep API key (if needed)
-# Enable verbose Gemini input/output logging only when explicitly requested
-_ENABLE_GEMINI_DEBUG_LOGS = os.getenv("ENABLE_GEMINI_DEBUG_LOGS", "false").lower() in ("1", "true", "yes", "on")
+
+# Configure the DeepSeek API client
+_ENABLE_DEEPSEEK_DEBUG_LOGS = os.getenv("ENABLE_DEEPSEEK_DEBUG_LOGS", "false").lower() in ("1", "true", "yes", "on")
+client = OpenAI(api_key=deepseek_api_key, base_url="https://api.deepseek.com")
+deepseek_model_name = 'deepseek-chat' # Using a modern, efficient model
 
 # Configure the Gemini API client
-genai.configure(api_key=gemini_api_key) 
-gemini_model = genai.GenerativeModel('gemini-2.5-flash-lite') # Using a modern, efficient model
+_ENABLE_GEMINI_DEBUG_LOGS = os.getenv("ENABLE_GEMINI_DEBUG_LOGS", "false").lower() in ("1", "true", "yes", "on")
+if gemini_api_key and gemini_api_key != "replace_me":
+    gemini_client = genai.Client(api_key=gemini_api_key)
+else:
+    gemini_client = None
 
 # A dictionary to hold all prompts for the AI model.
 PROMPTS = {
     "financial_assumptions":  "You are an equity analyst. Based *only* on the qualitative management commentary, guidance, and risks mentioned in the provided text, generate financial assumptions for the next three fiscal years. Do not perform any calculations. Provide the output as a clean JSON object ONLY, with no other text or explanations. The structure must be exactly: {\"base_case\": {\"revenue_growth_cagr\": 15, \"ebitda_margin\": 28.5, \"tax_rate\": 25}, \"bull_case\": {\"revenue_growth_cagr\": 20, \"ebitda_margin\": 29.5, \"tax_rate\": 25}, \"bear_case\": {\"revenue_growth_cagr\": 10, \"ebitda_margin\": 27.0, \"tax_rate\": 25}}. Use reasonable, text-supported estimates for growth, margin, and tax rates.",# old version changed into new workflow
-    "detailed_financial_assumptions_text": "You are an expert equity analyst. Below are historical financial statements and recent earnings call transcripts for a company. Your task is to generate a detailed qualitative analysis for the Bull, Base, and Bear case financial assumptions for the next three years. Use the historical data as a quantitative baseline and the transcript commentary to justify any acceleration, deceleration, or changes in trends. IMPORTANT: Before the content of each case section, output EXACTLY this cue on its own line so the app can split sections: ##NEWSECTION{base_case}## for Base Case, ##NEWSECTION{bull_case}## for Bull Case, and ##NEWSECTION{bear_case}## for Bear Case. Then immediately provide that case's analysis. Do not include any other text between the cues and the content. Within each section, list the key metrics (revenue_growth_cagr, ebitda_margin, tax_rate), their projected values, and a detailed justification, along with a confidence score (out of 10) for each number you predict, cite specific quotes from the text AND reference historical data points where relevant. Keep your justifications short(max 50 words per metric).",
+    "detailed_financial_assumptions_text": "You are an expert equity analyst. Below are historical financial statements and recent earnings call transcripts for a company. Your task is to generate a detailed qualitative analysis for the Bull, Base, and Bear case financial assumptions for the next three years. Use the historical data as a quantitative baseline and the transcript commentary to justify any acceleration, deceleration, or changes in trends. IMPORTANT: Before the content of each case section, output EXACTLY this cue on its own line so the app can split sections: ##NEWSECTION{base_case}## for Base Case, ##NEWSECTION{bull_case}## for Bull Case, and ##NEWSECTION{bear_case}## for Bear Case. Then immediately provide that case's analysis. Do not include any other text between the cues and the content. Within each section, list the key metrics (revenue_growth_cagr, ebitda_margin, tax_rate), their projected values, and a detailed justification, along with a confidence score (out of 10) for each number you predict, cite specific quotes from the text AND reference historical data points where relevant. Keep your justifications short(max 50 words per metric).\nFORMAT REQUIREMENT: You MUST present all numerical projections and metrics as strict Markdown tables. Do not use comma-separated values or raw text blocks for data.",
     "extract_assumptions_json": "bosed *ONLY* the text provided below, extract the financial assumptions for the base_case, bull_case, and bear_case. Provide the output as a clean JSON object ONLY, with no other text, markdown, or explanations.In case there is a range output the midpoint of the range. The structure must be exactly:{\"base_case\": {\"revenue_growth_cagr\": 15, \"ebitda_margin\": 28.5, \"tax_rate\": 25}, \"bull_case\": {\"revenue_growth_cagr\": 20, \"ebitda_margin\": 29.5, \"tax_rate\": 25}, \"bear_case\": {\"revenue_growth_cagr\": 10, \"ebitda_margin\": 27.0, \"tax_rate\": 25}}. Use reasonable, text-supported estimates for growth, margin, and tax rates.",
     "business_model": "You are an equity research analyst. Summarize the company's business model in simple, investor-friendly terms based on the provided text. Include these exact markdown headings: \"📌 Core Products & Services\", \"🎯 Target Markets / Customers\", \"💸 Revenue Model & Geography\", and \"📈 Scale & Competitive Positioning\".",
     "key_quarterly_updates": "Extract the 5-7 most important operational or financial updates from this concall text. Focus on: Growth drivers, Orders/capacity/margins, Strategy changes, and direct Quotes or signals from management. Present as a bulleted list in Markdown.",
@@ -42,32 +50,7 @@ PROMPTS = {
 # --- Core Logic Functions ---
 # --- New Function for Chat-Based Report Generation ---(not currently used)---
 def generate_report_in_chat(uploaded_files):
-    chat = gemini_model.start_chat()
-    results = {}
-    
-    # --- Message 1 ---
-    print("Getting management commentary...")
-    response1 = chat.send_message([PROMPTS["management_commentary"]] + uploaded_files)
-    results["managementCommentary"] = response1.text
-    time.sleep(5) # 2. Pause for 5 seconds
-
-    # --- Message 2 ---
-    print("Getting key quarterly updates...")
-    response2 = chat.send_message(PROMPTS["key_quarterly_updates"])
-    results["keyQuarterlyUpdates"] = response2.text
-    time.sleep(5) # 2. Pause for 5 seconds
-     
-    # --- message 3 ---
-    # --- Message  (The final JSON request) ---
-    print("Generating financial assumptions...")
-    final_prompt = "Based only on the qualitative management commentary..." # Use the forceful prompt
-    response3 = chat.send_message(final_prompt)
-    results["financialAssumptions"] = response3.text
-    # No need to sleep after the last call
-
-    # ... continue this pattern for all your steps ...
-
-    return results
+    pass
 
 
 # not being used currently
@@ -437,11 +420,13 @@ def extract_text_from_pdfs_from_bytes(files_data) -> str:
 
 
 
-# Assuming gemini_model is configured elsewhere
+# Assuming client is configured elsewhere
 
 def call_gemini(prompt, text_to_analyze, send_financials=False, financial_data=None, extra_context=None,):
     """Calls the Gemini API with a specific prompt and text, optionally including financial data."""
-    
+    if gemini_client is None:
+        return "Error: Gemini API key is not configured."
+        
     # --- Refined Prompt Construction ---
     # Determine the content and its description based on the arguments.
     if send_financials and financial_data:
@@ -474,13 +459,13 @@ def call_gemini(prompt, text_to_analyze, send_financials=False, financial_data=N
                         _f.write("-- financial_data (truncated to 10k chars):\n")
                         _fd = financial_data if isinstance(financial_data, str) else _json.dumps(financial_data, ensure_ascii=False)
                         _f.write(str(_fd)[:10000] + ("...\n" if len(str(_fd)) > 10000 else "\n"))
-                    _f.write("=== END INPUT ===\n")
             except Exception as _e0:
                 print(f"[debug] Failed to log Gemini input: {_e0}")
 
-        response = gemini_model.generate_content(
-            full_prompt,
-            generation_config=genai.GenerationConfig(
+        response = gemini_client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=full_prompt,
+            config=genai.types.GenerateContentConfig(
                 temperature=0.2,
                 max_output_tokens=1000
             )
@@ -488,17 +473,82 @@ def call_gemini(prompt, text_to_analyze, send_financials=False, financial_data=N
         # Debug append: record raw output (if enabled)
         if _ENABLE_GEMINI_DEBUG_LOGS:
             try:
-                _debug_path = os.path.join(os.path.dirname(__file__), "gemini_input_debug.txt")
+                _debug_path = os.path.join(os.path.dirname(__file__), "gemini_output_debug.txt")
                 with open(_debug_path, "a", encoding="utf-8") as _f:
-                    _f.write("\n=== GEMINI_CALL OUTPUT @ " + time.strftime("%Y-%m-%d %H:%M:%S") + " ===\n")
-                    _f.write((response.text or "") + "\n")
-                    _f.write("=== END OUTPUT ===\n")
+                    _f.write("\n\n=== GEMINI_CALL RAW OUTPUT @ " + time.strftime("%Y-%m-%d %H:%M:%S") + " ===\n")
+                    _f.write(str(response.text) + "\n")
+                    _f.write("=== END RAW OUTPUT ===\n")
             except Exception as _e1:
                 print(f"[debug] Failed to log Gemini output: {_e1}")
 
         return response.text
     except Exception as e:
         print(f"An error occurred with the Gemini API: {e}")
+        return f"Error: Could not generate content from AI. Details: {e}"
+
+def call_deepseek(prompt, text_to_analyze, send_financials=False, financial_data=None, extra_context=None,):
+    """Calls the DeepSeek API with a specific prompt and text, optionally including financial data."""
+    
+    # --- Refined Prompt Construction ---
+    # Determine the content and its description based on the arguments.
+    if send_financials and financial_data:
+        description = "transcripts and historical financial statements"
+        content_to_send = f"{text_to_analyze}\n\n---\n\n{financial_data}"
+    else:
+        description = "transcripts"
+        content_to_send = text_to_analyze
+
+    # Append prior step's output if provided to aid chaining
+    if extra_context:
+        content_to_send = f"{content_to_send}\n\n---\n\nPrior context from previous step:\n{extra_context}"
+
+    # Assemble the final prompt
+    full_prompt = f"{prompt}\n\nHere are the {description} to analyze:\n\n---\n\n{content_to_send}"
+    # --- End of Refined Construction ---
+
+    try:
+        # Debug append: record input payload prior to call (if enabled)
+        if _ENABLE_DEEPSEEK_DEBUG_LOGS:
+            try:
+                _debug_path = os.path.join(os.path.dirname(__file__), "deepseek_input_debug.txt")
+                with open(_debug_path, "a", encoding="utf-8") as _f:
+                    _f.write("\n\n=== DEEPSEEK_CALL INPUT @ " + time.strftime("%Y-%m-%d %H:%M:%S") + " ===\n")
+                    _f.write("-- send_financials: " + str(bool(send_financials)) + "\n")
+                    _f.write("-- extra_context: " + ("yes" if bool(extra_context) else "no") + "\n")
+                    _f.write("-- prompt:\n" + (prompt if isinstance(prompt, str) else _json.dumps(prompt, ensure_ascii=False)) + "\n")
+                    _f.write("-- content_to_analyze (possibly markdown):\n" + (text_to_analyze if isinstance(text_to_analyze, str) else _json.dumps(text_to_analyze, ensure_ascii=False)) + "\n")
+                    if send_financials and financial_data is not None:
+                        _f.write("-- financial_data (truncated to 10k chars):\n")
+                        _fd = financial_data if isinstance(financial_data, str) else _json.dumps(financial_data, ensure_ascii=False)
+                        _f.write(str(_fd)[:10000] + ("...\n" if len(str(_fd)) > 10000 else "\n"))
+                    _f.write("=== END INPUT ===\n")
+            except Exception as _e0:
+                print(f"[debug] Failed to log DeepSeek input: {_e0}")
+
+        response = client.chat.completions.create(
+            model=deepseek_model_name,
+            messages=[
+                {"role": "user", "content": full_prompt}
+            ],
+            temperature=0.2,
+            max_tokens=8192
+        )
+        response_text = response.choices[0].message.content
+
+        # Debug append: record raw output (if enabled)
+        if _ENABLE_DEEPSEEK_DEBUG_LOGS:
+            try:
+                _debug_path = os.path.join(os.path.dirname(__file__), "deepseek_input_debug.txt")
+                with open(_debug_path, "a", encoding="utf-8") as _f:
+                    _f.write("\n=== DEEPSEEK_CALL OUTPUT @ " + time.strftime("%Y-%m-%d %H:%M:%S") + " ===\n")
+                    _f.write((response_text or "") + "\n")
+                    _f.write("=== END OUTPUT ===\n")
+            except Exception as _e1:
+                print(f"[debug] Failed to log DeepSeek output: {_e1}")
+
+        return response_text
+    except Exception as e:
+        print(f"An error occurred with the DeepSeek API: {e}")
         return f"Error: Could not generate content from AI. Details: {e}"
 
 

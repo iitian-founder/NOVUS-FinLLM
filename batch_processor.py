@@ -567,7 +567,7 @@ def main() -> None:
     Iterates through all tickers and processes them.
     """
     print("=" * 60)
-    print("Giga-Finanalytix Batch Processor")
+    print("Novus Batch Processor")
     print("=" * 60)
     print(f"Source Directory: {SOURCE_DIR}")
     print(f"Target Directory: {TARGET_DIR}")
