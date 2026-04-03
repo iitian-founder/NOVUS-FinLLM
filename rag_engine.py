@@ -12,6 +12,8 @@ Stack:
   Chunking: Section-aware, 1000 tokens, 200 overlap
 """
 
+from utils.logger import get_logger
+logger = get_logger(__name__)
 import os
 import re
 import json
@@ -257,7 +259,7 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
             )
             embeddings.extend(result['embedding'])
         except Exception as e:
-            print(f"[RAG] Embedding error for batch {i}: {e}")
+            logger.info(f"[RAG] Embedding error for batch {i}: {e}")
             # Fallback: return zero vectors (will have low similarity)
             embeddings.extend([[0.0] * 3072] * len(batch))
 
@@ -274,15 +276,20 @@ def embed_query(query: str) -> list[float]:
         )
         return result['embedding']
     except Exception as e:
-        print(f"[RAG] Query embedding error: {e}")
+        logger.info(f"[RAG] Query embedding error: {e}")
         return [0.0] * 3072
 
 
 # ── ChromaDB Management ──────────────────────────────────────────────────────
 
+_chroma_client = None
+
 def get_chroma_client() -> chromadb.ClientAPI:
-    """Get or create a persistent ChromaDB client."""
-    return chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
+    """Get or create a persistent ChromaDB client as a singleton."""
+    global _chroma_client
+    if _chroma_client is None:
+        _chroma_client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
+    return _chroma_client
 
 
 def get_collection(ticker: str) -> chromadb.Collection:
@@ -328,11 +335,11 @@ def ingest_documents(
             for page in pdf_doc:
                 text += page.get_text()
         except Exception as e:
-            print(f"[RAG] Failed to parse {filename}: {e}")
+            logger.info(f"[RAG] Failed to parse {filename}: {e}")
             continue
 
         if not text.strip():
-            print(f"[RAG] No text extracted from {filename}")
+            logger.info(f"[RAG] No text extracted from {filename}")
             continue
 
         # Classify document type
@@ -369,7 +376,7 @@ def ingest_documents(
         )
 
         total_chunks += len(chunks)
-        print(f"[RAG] Ingested {filename}: {len(chunks)} chunks, type={doc_type}")
+        logger.info(f"[RAG] Ingested {filename}: {len(chunks)} chunks, type={doc_type}")
 
     return {
         "total_chunks": total_chunks,
@@ -410,7 +417,7 @@ def query(
             where=where_filter if len(where_filter) > 1 else None,
         )
     except Exception as e:
-        print(f"[RAG] Query failed: {e}")
+        logger.info(f"[RAG] Query failed: {e}")
         # Retry without filters
         try:
             results = collection.query(

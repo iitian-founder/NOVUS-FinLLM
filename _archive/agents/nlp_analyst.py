@@ -1,4 +1,4 @@
-# agents/nlp_analyst.py
+# agents/nlp_analyst.py (v2)
 """
 Agent 4: NLP Analyst Agent (Phases 3, 4 & 5 — Industry, Moat, Management)
 
@@ -14,17 +14,91 @@ Danger Zones:
   annual report's own marketing.
 - Do NOT ask an LLM: "Is this management trustworthy?" — it will read the
   polished management script and say yes.
+
+v2 Changelog (all from audit):
+  FIX 1:  Four Gemini calls run concurrently via ThreadPoolExecutor
+  FIX 2:  Context truncation logged in data_gaps with char counts
+  FIX 3:  All LLM calls wrapped in _safe_llm_call — catches raises + "Error" prefix
+  FIX 4:  Removed sys.path manipulation — proper import
+  FIX 5:  JSON fence stripping uses shared _strip_llm_json_fences utility
 """
 
 import json
 import re
-import os
-import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Callable
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from logic import call_deepseek, call_gemini
+# FIX 4: Proper import — no sys.path hacking.
+# Requires PYTHONPATH or package __init__.py to include project root.
+from llm_clients import call_deepseek, call_gemini
+
+
+# ── FIX 5: Shared JSON Fence Stripping ───────────────────────────────────────
+
+def _strip_llm_json_fences(text: str) -> str:
+    """Remove markdown JSON fences from LLM output."""
+    clean = text.strip()
+    if '```json' in clean:
+        clean = clean.split('```json', 1)[1].rsplit('```', 1)[0]
+    elif '```' in clean:
+        clean = clean.split('```', 1)[1].rsplit('```', 1)[0]
+    return clean.strip()
+
+
+# ── FIX 3: Safe LLM Call Wrapper ─────────────────────────────────────────────
+#
+# The v1 error convention assumed LLM functions return "Error: ..." strings on
+# failure and never raise. But call_gemini and call_deepseek are wrappers around
+# HTTP APIs — they can raise on network timeouts, JSON decode failures,
+# auth errors, etc. This wrapper catches both conventions.
+
+def _safe_llm_call(
+    llm_fn: Callable,
+    *args,
+    label: str = "LLM call",
+    **kwargs,
+) -> tuple[Optional[str], Optional[str]]:
+    """
+    Call an LLM function safely. Returns (response, error).
+
+    - If the call succeeds and returns content: (response, None)
+    - If the call returns an "Error" string: (None, error_message)
+    - If the call raises an exception: (None, error_message)
+    - If the call returns empty/None: (None, "empty response")
+    """
+    try:
+        response = llm_fn(*args, **kwargs)
+        if not response:
+            return None, f"{label}: LLM returned empty response"
+        if isinstance(response, str) and response.startswith("Error"):
+            return None, f"{label}: {response[:300]}"
+        return response, None
+    except Exception as e:
+        return None, f"{label}: {type(e).__name__} — {e}"
+
+
+# ── FIX 2: Truncation with Logging ──────────────────────────────────────────
+
+def _truncate_with_warning(
+    text: str,
+    max_chars: int,
+    label: str,
+    data_gaps: list[str],
+) -> str:
+    """
+    Truncate text to max_chars. If truncation occurs, append a warning
+    to data_gaps so the analyst knows the analysis was based on partial data.
+    """
+    if len(text) <= max_chars:
+        return text
+
+    data_gaps.append(
+        f"{label}: Input truncated from {len(text):,} to {max_chars:,} chars "
+        f"({100 - (max_chars / len(text) * 100):.0f}% discarded). "
+        f"Scoring is based on partial data."
+    )
+    return text[:max_chars]
 
 
 # ── Deduplication Helper ─────────────────────────────────────────────────────
@@ -43,15 +117,12 @@ def deduplicate_markdown(text: str) -> str:
     deduped = []
 
     for line in lines:
-        # Normalize for comparison: strip whitespace, bullets, numbering
         normalized = re.sub(r'^[\s\-\*•\d\.]+', '', line).strip().lower()
 
-        # Keep empty lines and headers (they structure the document)
         if not normalized or line.strip().startswith('#'):
             deduped.append(line)
             continue
 
-        # Skip if we've seen this exact content before
         if normalized in seen:
             continue
 
@@ -69,23 +140,24 @@ class ManagementEvasionScore:
     Structured scoring of management communication quality.
     Based on earnings call Q&A analysis ONLY — never the opening statement.
     """
-    question_dodge_rate: float = 0.0         # % of questions deflected/ignored
-    accountability_ratio: float = 1.0        # Positive self-attribution / Negative external-attribution
-    guidance_track_record: float = 0.0       # % of guidance met/exceeded
-    new_risk_disclosure_count: int = 0       # New risk factors in recent quarters
+    question_dodge_rate: float = 0.0
+    accountability_ratio: float = 1.0
+    guidance_track_record: float = 0.0
+    new_risk_disclosure_count: int = 0
     response_classifications: list[dict] = field(default_factory=list)
-    overall_score: float = 0.0              # 0-1, higher = more transparent
+    overall_score: float = 0.0
     red_flags: list[str] = field(default_factory=list)
+    # FIX 2: Track how much of the Q&A was actually analysed
+    chars_analysed: int = 0
+    chars_available: int = 0
 
 
 @dataclass
 class MoatVerification:
-    """
-    Adversarial RAG-based moat verification result.
-    """
+    """Adversarial RAG-based moat verification result."""
     claimed_advantages: list[str] = field(default_factory=list)
-    verdicts: list[dict] = field(default_factory=list)  # [{claim, verdict, evidence}]
-    overall_moat_strength: str = "UNVERIFIABLE"  # "STRONG", "MODERATE", "WEAK", "UNVERIFIABLE"
+    verdicts: list[dict] = field(default_factory=list)
+    overall_moat_strength: str = "UNVERIFIABLE"
     data_gaps: list[str] = field(default_factory=list)
 
 
@@ -111,6 +183,8 @@ class NLPAnalysisResult:
                 "overall_score": self.management_evasion.overall_score,
                 "red_flags": self.management_evasion.red_flags,
                 "classifications": self.management_evasion.response_classifications,
+                "chars_analysed": self.management_evasion.chars_analysed,
+                "chars_available": self.management_evasion.chars_available,
             },
             "moat_verification": {
                 "claimed_advantages": self.moat_verification.claimed_advantages,
@@ -148,44 +222,47 @@ Return a JSON array ONLY, no other text:
 Q&A Transcript:
 """
 
+# FIX 2: Configurable limits
+QA_MAX_CHARS = 8000
+MOAT_MAX_CHARS = 12000
 
-def score_management_evasion(qa_text: str) -> ManagementEvasionScore:
+
+def score_management_evasion(
+    qa_text: str,
+    data_gaps: list[str],
+) -> ManagementEvasionScore:
     """
     Score management transparency from earnings call Q&A sections.
-    
-    Metrics:
-    1. Question Dodge Rate (QDR): QDR > 30% = red flag
-    2. Accountability Ratio: Score < 0.5 = low accountability culture
-    3. Response classification via structured LLM prompt
-    
+
     IMPORTANT: Feed Q&A sections ONLY. Opening statement excluded.
-    An LLM fed a full earnings transcript will call every CEO "confident and focused."
     """
     score = ManagementEvasionScore()
 
     if not qa_text or len(qa_text.strip()) < 100:
         return score
 
-    # Use LLM for structural classification ONLY
-    prompt = QA_CLASSIFICATION_PROMPT
-    response = call_deepseek(prompt, qa_text[:8000])  # Limit context size
+    # FIX 2: Track how much text we're actually analysing
+    score.chars_available = len(qa_text)
+    truncated_text = _truncate_with_warning(
+        qa_text, QA_MAX_CHARS, "Management evasion scoring", data_gaps,
+    )
+    score.chars_analysed = len(truncated_text)
 
-    if not response or response.startswith("Error"):
+    # FIX 3: Safe LLM call
+    response, error = _safe_llm_call(
+        call_deepseek, QA_CLASSIFICATION_PROMPT, truncated_text,
+        label="Q&A classification",
+    )
+    if error:
+        data_gaps.append(error)
         return score
 
-    # Parse the classification response
     try:
-        clean = response.strip()
-        if '```json' in clean:
-            clean = clean.split('```json', 1)[1].rsplit('```', 1)[0]
-        elif '```' in clean:
-            clean = clean.split('```', 1)[1].rsplit('```', 1)[0]
-
-        classifications = json.loads(clean.strip())
+        clean = _strip_llm_json_fences(response)
+        classifications = json.loads(clean)
 
         if isinstance(classifications, list):
             score.response_classifications = classifications
-
             total = len(classifications)
             if total > 0:
                 deflections = sum(
@@ -194,18 +271,16 @@ def score_management_evasion(qa_text: str) -> ManagementEvasionScore:
                 )
                 score.question_dodge_rate = round(deflections / total, 2)
 
-                # Flag if QDR > 30%
                 if score.question_dodge_rate > 0.30:
                     score.red_flags.append(
                         f"Question Dodge Rate = {score.question_dodge_rate:.0%} "
                         f"({deflections}/{total} questions deflected/ignored)"
                     )
 
-                # Overall transparency score (inverted QDR)
                 score.overall_score = round(1.0 - score.question_dodge_rate, 2)
 
     except (json.JSONDecodeError, KeyError, TypeError) as e:
-        print(f"[NLP Analyst] Failed to parse Q&A classifications: {e}")
+        data_gaps.append(f"Q&A classification parse failed: {e}")
 
     return score
 
@@ -241,36 +316,43 @@ Company filings and transcript:
 """
 
 
-def verify_moat_claims(transcript_text: str, financial_data_summary: str = "") -> MoatVerification:
+def verify_moat_claims(
+    transcript_text: str,
+    financial_data_summary: str = "",
+    data_gaps: list[str] = None,
+) -> MoatVerification:
     """
     Adversarial RAG approach to moat verification.
-    
-    Do NOT ask an LLM: "Does Company A have a cost advantage?"
-    It will summarize Company A's annual report claims. That's the PR department talking.
-    
-    Correct approach: Force the model to identify claims and then evaluate
-    each against evidence. "UNVERIFIABLE" is always preferable to a guess.
+
+    Force the model to identify claims and then evaluate each against evidence.
+    "UNVERIFIABLE" is always preferable to a guess.
     """
+    if data_gaps is None:
+        data_gaps = []
+
     result = MoatVerification()
 
     combined_text = transcript_text
     if financial_data_summary:
         combined_text += f"\n\n---\n\nFinancial Data Summary:\n{financial_data_summary}"
 
-    response = call_deepseek(MOAT_VERIFICATION_PROMPT, combined_text[:12000])
+    # FIX 2: Truncate with warning
+    truncated = _truncate_with_warning(
+        combined_text, MOAT_MAX_CHARS, "Moat verification", data_gaps,
+    )
 
-    if not response or response.startswith("Error"):
-        result.data_gaps.append("LLM failed to process moat verification")
+    # FIX 3: Safe LLM call
+    response, error = _safe_llm_call(
+        call_deepseek, MOAT_VERIFICATION_PROMPT, truncated,
+        label="Moat verification",
+    )
+    if error:
+        result.data_gaps.append(error)
         return result
 
     try:
-        clean = response.strip()
-        if '```json' in clean:
-            clean = clean.split('```json', 1)[1].rsplit('```', 1)[0]
-        elif '```' in clean:
-            clean = clean.split('```', 1)[1].rsplit('```', 1)[0]
-
-        parsed = json.loads(clean.strip())
+        clean = _strip_llm_json_fences(response)
+        parsed = json.loads(clean)
 
         for adv in parsed.get("claimed_advantages", []):
             result.claimed_advantages.append(adv.get("claim", ""))
@@ -290,7 +372,7 @@ def verify_moat_claims(transcript_text: str, financial_data_summary: str = "") -
     return result
 
 
-# ── Qualitative Analysis Prompts (from existing logic.py PROMPTS) ────────────
+# ── Qualitative Analysis Prompts ─────────────────────────────────────────────
 
 PROMPTS = {
     "business_model": (
@@ -332,6 +414,42 @@ PROMPTS = {
 }
 
 
+# ── FIX 1: Concurrent Gemini Execution ───────────────────────────────────────
+#
+# The four qualitative extraction calls (business model, quarterly updates,
+# management commentary, risks) are independent — no data dependency between
+# them. Running them sequentially wastes 20-40 seconds.
+#
+# We use ThreadPoolExecutor (not asyncio) because:
+# (a) call_gemini is synchronous
+# (b) This function is itself called from asyncio.to_thread by the orchestrator,
+#     so it's already off the event loop
+# (c) ThreadPoolExecutor.map handles the join cleanly
+
+def _run_gemini_extraction(
+    prompt_key: str,
+    transcript_text: str,
+    rag_context: str,
+    data_gaps: list[str],
+) -> tuple[str, str]:
+    """
+    Run a single Gemini extraction task. Returns (prompt_key, result_text).
+    FIX 3: Wraps call in _safe_llm_call for crash safety.
+    """
+    prompt = PROMPTS[prompt_key]
+    response, error = _safe_llm_call(
+        call_gemini, prompt, transcript_text,
+        label=f"Gemini extraction ({prompt_key})",
+        extra_context=rag_context if rag_context else None,
+    )
+
+    if error:
+        data_gaps.append(error)
+        return prompt_key, ""
+
+    return prompt_key, deduplicate_markdown(response)
+
+
 # ── Main Pipeline Entry Point ────────────────────────────────────────────────
 
 def run_nlp_analysis(
@@ -343,52 +461,74 @@ def run_nlp_analysis(
 ) -> NLPAnalysisResult:
     """
     Run the full NLP Analyst pipeline.
-    
+
     Steps:
-    1. Business model summary (Gemini — extraction task)
-    2. Key quarterly updates (Gemini — extraction task)
-    3. Management commentary (Gemini — extraction task)
-    4. Risks & uncertainties (Gemini — extraction task)
-    5. Management evasion scoring (DeepSeek — Q&A classification only)
-    6. Adversarial moat verification (DeepSeek — structured reasoning)
-    
-    If rag_context is provided, it is passed as extra_context to all Gemini calls
-    so that the model can reference information from ALL uploaded documents.
+    1-4. Qualitative extraction via Gemini (concurrent — FIX 1)
+    5.   Management evasion scoring (DeepSeek — Q&A classification only)
+    6.   Adversarial moat verification (DeepSeek — structured reasoning)
+
+    If rag_context is provided, it is passed as extra_context to all Gemini calls.
     """
     result = NLPAnalysisResult(ticker=ticker)
 
-    # Step 1-4: Qualitative extraction via Gemini (best for extraction tasks)
-    # All outputs go through deduplicate_markdown() to remove LLM repetition
-    # RAG context enriches analysis with data from annual reports, presentations, etc.
-    result.business_model_summary = deduplicate_markdown(call_gemini(
-        PROMPTS["business_model"], transcript_text,
-        extra_context=rag_context if rag_context else None,
-    ))
-    result.quarterly_updates = deduplicate_markdown(call_gemini(
-        PROMPTS["key_quarterly_updates"], transcript_text,
-        extra_context=rag_context if rag_context else None,
-    ))
-    result.management_commentary = deduplicate_markdown(call_gemini(
-        PROMPTS["management_commentary"], transcript_text,
-        extra_context=rag_context if rag_context else None,
-    ))
-    result.risks = deduplicate_markdown(call_gemini(
-        PROMPTS["risks_uncertainties"], transcript_text,
-        extra_context=rag_context if rag_context else None,
-    ))
+    # ── Steps 1-4: Concurrent Gemini extraction (FIX 1) ──────────────
+    gemini_tasks = [
+        "business_model",
+        "key_quarterly_updates",
+        "management_commentary",
+        "risks_uncertainties",
+    ]
 
-    # Step 5: Management evasion scoring (Q&A sections only!)
+    # Thread-safe list for data_gaps from concurrent tasks
+    gemini_errors: list[str] = []
+
+    with ThreadPoolExecutor(max_workers=4, thread_name_prefix="gemini") as pool:
+        futures = {
+            pool.submit(
+                _run_gemini_extraction,
+                task_key, transcript_text, rag_context, gemini_errors,
+            ): task_key
+            for task_key in gemini_tasks
+        }
+
+        results_map = {}
+        for future in as_completed(futures):
+            task_key = futures[future]
+            try:
+                key, text = future.result()
+                results_map[key] = text
+            except Exception as e:
+                # FIX 3: Even if future.result() raises, we don't crash
+                gemini_errors.append(
+                    f"Gemini extraction ({task_key}): Unexpected error — {e}"
+                )
+                results_map[task_key] = ""
+
+    # Assign results
+    result.business_model_summary = results_map.get("business_model", "")
+    result.quarterly_updates = results_map.get("key_quarterly_updates", "")
+    result.management_commentary = results_map.get("management_commentary", "")
+    result.risks = results_map.get("risks_uncertainties", "")
+
+    # Surface any Gemini errors
+    result.data_gaps.extend(gemini_errors)
+
+    # ── Step 5: Management evasion scoring (Q&A sections only!) ──────
     if qa_sections:
         qa_combined = "\n\n---\n\n".join(qa_sections)
-        result.management_evasion = score_management_evasion(qa_combined)
+        result.management_evasion = score_management_evasion(
+            qa_combined, result.data_gaps,
+        )
     else:
         result.data_gaps.append(
             "No Q&A sections available — management evasion scoring skipped."
         )
 
-    # Step 6: Adversarial moat verification
+    # ── Step 6: Adversarial moat verification ────────────────────────
     result.moat_verification = verify_moat_claims(
-        transcript_text, financial_data_summary
+        transcript_text, financial_data_summary, result.data_gaps,
     )
 
     return result
+
+    

@@ -1,13 +1,9 @@
+
+from utils.logger import get_logger
+logger = get_logger(__name__)
 # tasks.py — Novus FinLLM Multi-Agent Pipeline
 """
-Restructured background task pipeline using the 5-agent MAS architecture.
-
-Agent Flow:
-  EXTRACTION → FETCH FINANCIALS → TRIAGE → FORENSIC QUANT ║ NLP ANALYST → PM SYNTHESIS
-
-Law 1: GROUND EVERYTHING
-Law 2: SEPARATE CALCULATION FROM NARRATION
-Law 3: MAKE UNCERTAINTY EXPLICIT
+Restructured background task pipeline using the V3 MAS architecture.
 """
 
 import json
@@ -15,22 +11,69 @@ import time
 import asyncio
 from rq import get_current_job
 
-from cio_orchestrator import run_orchestrator
+# --- Persistent Event Loop for RQ Workers ---
+# Prevents macOS fork() + CoreFoundation crashes by reusing the loop footprint
+_runner = asyncio.Runner()
+
 from agents.extraction import run_extraction_pipeline
 from rag_engine import ingest_documents, get_collection_stats, get_context_for_agent
+from structured_data_fetcher import get_structured_data_fetcher
+from cio_orchestrator import analyze, OrchestratorState
+
+
+from utils.formatters import format_dict_as_markdown
+
+def build_ui_payloads(st: OrchestratorState) -> tuple[dict, dict, dict | None]:
+    """Single source of truth for UI payload construction from OrchestratorState (V3)."""
+    a_outs = {}
+    for name, trail in st.agent_trails.items():
+        if trail.findings:
+            md_lines = format_dict_as_markdown(trail.findings, indent=0)
+            a_outs[name] = "\n".join(md_lines)
+        elif trail.data_gaps:
+            a_outs[name] = f"**Data Gaps:**\n" + "\n".join(f"- {g}" for g in trail.data_gaps)
+        else:
+            a_outs[name] = "[processing...]"
+
+    kill_reasons = []
+    warnings = []
+    passed = True
+
+    fi = st.agent_trails.get("forensic_investigator")
+    if fi and fi.findings and isinstance(fi.findings, dict):
+        fo = fi.findings
+        for field in ["related_party_flags", "auditor_flags", "contingent_liabilities"]:
+            for issue in fo.get(field, []):
+                desc = issue.get("description", "") if isinstance(issue, dict) else str(issue)
+                sev = issue.get("severity", "") if isinstance(issue, dict) else ""
+
+                if str(sev).upper() in ("HIGH", "CRITICAL"):
+                    passed = False
+                    kill_reasons.append(f"{field.upper()}: {desc}")
+                else:
+                    warnings.append(f"{field.upper()}: {desc}")
+
+    t_res = {"passed": passed, "kill_reasons": kill_reasons, "warnings": warnings}
+
+    f_score = None
+    fsa = st.agent_trails.get("forensic_quant")
+    if fsa and fsa.findings:
+        f_score = fsa.findings
+
+    return a_outs, t_res, f_score
 
 
 PROGRESS_STAGES = [
     "extract_pdfs",
     "ingest_rag",
     "fetch_financials",
-    "triage",
-    "forensic_analysis",
-    "nlp_analysis",
-    "assumptions",
-    "projections",
-    "pm_synthesis",
+    "lead_analyst_planning",
+    "investigation",
+    "reflection",
+    "conflict_check",
+    "synthesis",
     "assemble",
+    "complete"
 ]
 
 
@@ -55,7 +98,7 @@ def generate_financial_report_from_rag(ticker):
     No PDF upload needed — everything comes from the vector store.
     """
     try:
-        from rag_engine import query as rag_query, get_collection_stats, get_context_for_agent
+        from rag_engine import query as rag_query
 
         # ═══════════════════════════════════════════════════════════════
         # CHECK RAG STORE
@@ -67,14 +110,13 @@ def generate_financial_report_from_rag(ticker):
                 f"No documents found for ticker {ticker} in RAG store. "
                 f"Please ingest documents first via /ingest_local."
             )
-        print(f"[RAG-Only] Found {stats['total_chunks']} chunks for {ticker}")
+        logger.info(f"[RAG-Only] Found {stats['total_chunks']} chunks for {ticker}")
 
         # ═══════════════════════════════════════════════════════════════
         # BUILD SYNTHETIC TRANSCRIPT FROM RAG STORE
-        # Pull the most relevant chunks to create a "transcript"
         # ═══════════════════════════════════════════════════════════════
         _update_progress('extract_pdfs')
-        print("[RAG-Only] Building synthetic transcript from stored documents...")
+        logger.info("[RAG-Only] Building synthetic transcript from stored documents...")
 
         key_queries = [
             "company overview business model revenue segments",
@@ -102,31 +144,40 @@ def generate_financial_report_from_rag(ticker):
                     )
 
         combined_text = "\n\n---\n\n".join(transcript_parts)
-        print(f"[RAG-Only] Built transcript: {len(combined_text)} chars from {len(transcript_parts)} chunks")
+        logger.info(f"[RAG-Only] Built transcript: {len(combined_text)} chars from {len(transcript_parts)} chunks")
 
         if not combined_text:
             raise ValueError("Could not build transcript from RAG store — documents may be empty.")
 
         # ═══════════════════════════════════════════════════════════════
-        # STATE-MACHINE ORCHESTRATION
+        # FETCH FINANCIAL DATA
+        # ═══════════════════════════════════════════════════════════════
+        _update_progress('fetch_financials')
+        fetcher = get_structured_data_fetcher()
+        structured_data = fetcher.fetch(ticker)
+        financial_tables = structured_data.get("tables", {})
+
+        # ═══════════════════════════════════════════════════════════════
+        # V3 ORCHESTRATION
         # ═══════════════════════════════════════════════════════════════
         def progress_cb(stage, active, completed, **kwargs):
             extra = {
                 "active_agents": active,
                 "completed_agents": completed
             }
-            # Forward per-agent streaming outputs if provided
             if "agent_outputs" in kwargs:
                 extra["agent_outputs"] = kwargs["agent_outputs"]
             _update_progress(stage, extra)
 
         user_query = f"Analyze {ticker} focusing on forensics, competitive moat, narrative shifts, and capital allocation."
         
-        print(f"[Pipeline] Starting State-Machine Orchestrator for {ticker}")
-        state = asyncio.run(run_orchestrator(
+        logger.info(f"[Pipeline] Starting V3 Orchestrator for {ticker}")
+        state = _runner.run(analyze(
             ticker=ticker,
-            user_query=user_query,
-            context_data=combined_text,
+            document_text=combined_text,
+            financial_tables=financial_tables,
+            sector="General / Diversified", # Defaults for V3 agent instruction framing
+            query=user_query,
             progress_callback=progress_cb
         ))
 
@@ -134,18 +185,24 @@ def generate_financial_report_from_rag(ticker):
         # ASSEMBLE FINAL REPORT
         # ═══════════════════════════════════════════════════════════════
         _update_progress('assemble')
-        print("[Pipeline] Assembling final Novus report...")
+        logger.info("[Pipeline] Assembling final Novus report...")
 
-        # Write the final report into job metadata so the frontend
-        # can render it immediately during the next poll cycle.
+        agent_outputs, triage_result, forensic_scorecard = build_ui_payloads(state)
+
         _update_progress('assemble', {
             "final_report": state.final_report,
+            "agent_outputs": agent_outputs,
+            "triage_result": triage_result,
+            "forensic_scorecard": forensic_scorecard,
             "active_agents": [],
-            "completed_agents": ["planning", "fsa_quant", "forensic_investigator", "narrative_decoder", "moat_architect", "capital_allocator", "synthesis"]
+            "completed_agents": ["planning", "forensic_quant", "forensic_investigator", "narrative_decoder", "moat_architect", "capital_allocator", "management_quality", "synthesis"]
         })
 
         return {
             "final_report": state.final_report,
+            "agent_outputs": agent_outputs,
+            "triage_result": triage_result,
+            "forensic_scorecard": forensic_scorecard,
             "status": "completed"
         }
 
@@ -157,48 +214,44 @@ def generate_financial_report_from_rag(ticker):
 def generate_financial_report(ticker, files_data):
     """
     Background task: Full Novus FinLLM Multi-Agent Report Generation.
-
-    Pipeline:
-      1. EXTRACTION PIPELINE — PDF parsing, Q&A isolation
-      2. FETCH FINANCIALS — Screener.in scraping (existing proven logic)
-      3. TRIAGE AGENT — Kill screen on fetched data (deterministic)
-      4. FORENSIC QUANT — Pure math
-      5. NLP ANALYST — Structured LLM analysis
-      6. ASSUMPTIONS & PROJECTIONS — Financial modeling
-      7. PM SYNTHESIS — Investment thesis
-      8. ASSEMBLE — Final report
     """
     try:
         # ═══════════════════════════════════════════════════════════════
         # AGENT 2: EXTRACTION PIPELINE (runs first — needs PDFs)
         # ═══════════════════════════════════════════════════════════════
         _update_progress('extract_pdfs')
-        print(f"[Agent 2: Extraction] Processing PDFs...")
+        logger.info(f"[Agent 2: Extraction] Processing PDFs...")
 
         extraction_result = run_extraction_pipeline(ticker, files_data)
         combined_text = extraction_result.raw_text
 
         if not combined_text:
-            raise ValueError("Could not extract text from the provided PDF files.")
+            raise ValueError("Could not extract text from the provided PDF files. This usually happens if the PDF is a scanned image without an OCR (text) layer.")
 
         # ═══════════════════════════════════════════════════════════════
-        # RAG INGESTION — Parse, chunk, embed, store all documents
+        # RAG INGESTION
         # ═══════════════════════════════════════════════════════════════
         _update_progress('ingest_rag')
-        print("[RAG Engine] Ingesting documents into vector store...")
+        logger.info("[RAG Engine] Ingesting documents into vector store...")
 
         try:
-            # Build (filename, bytes) pairs for RAG ingestion
             rag_files = [(f"doc_{i+1}.pdf", fb) for i, fb in enumerate(files_data)]
             rag_stats = ingest_documents(ticker, rag_files)
-            print(f"[RAG Engine] ✅ Ingested {rag_stats['total_chunks']} chunks, "
-                  f"types={rag_stats['doc_types']}")
+            logger.info(f"[RAG Engine] ✅ Ingested {rag_stats['total_chunks']} chunks, types={rag_stats['doc_types']}")
         except Exception as e:
-            print(f"[RAG Engine] ⚠️ RAG ingestion failed (non-fatal): {e}")
+            logger.info(f"[RAG Engine] ⚠️ RAG ingestion failed (non-fatal): {e}")
             rag_stats = {"total_chunks": 0, "doc_types": [], "error": str(e)}
 
         # ═══════════════════════════════════════════════════════════════
-        # STATE-MACHINE ORCHESTRATION
+        # FETCH FINANCIAL DATA
+        # ═══════════════════════════════════════════════════════════════
+        _update_progress('fetch_financials')
+        fetcher = get_structured_data_fetcher()
+        structured_data = fetcher.fetch(ticker)
+        financial_tables = structured_data.get("tables", {})
+
+        # ═══════════════════════════════════════════════════════════════
+        # V3 ORCHESTRATION
         # ═══════════════════════════════════════════════════════════════
         def progress_cb(stage, active, completed, **kwargs):
             extra = {
@@ -211,11 +264,13 @@ def generate_financial_report(ticker, files_data):
 
         user_query = f"Analyze {ticker} focusing on forensics, competitive moat, narrative shifts, and capital allocation."
         
-        print(f"[Pipeline] Starting State-Machine Orchestrator for {ticker}")
-        state = asyncio.run(run_orchestrator(
+        logger.info(f"[Pipeline] Starting V3 Orchestrator for {ticker}")
+        state = _runner.run(analyze(
             ticker=ticker,
-            user_query=user_query,
-            context_data=combined_text,
+            document_text=combined_text,
+            financial_tables=financial_tables,
+            sector="General / Diversified",
+            query=user_query,
             progress_callback=progress_cb
         ))
 
@@ -223,35 +278,29 @@ def generate_financial_report(ticker, files_data):
         # ASSEMBLE FINAL REPORT
         # ═══════════════════════════════════════════════════════════════
         _update_progress('assemble')
-        print("[Pipeline] Assembling final Novus report...")
+        logger.info("[Pipeline] Assembling final Novus report...")
 
-        # Write the final report into job metadata so the frontend
-        # can render it immediately during the next poll cycle.
-        # Rebuild agent_outputs for the final payload
-        from cio_orchestrator import format_dict_as_markdown
-        agent_outputs = {}
-        for name, finding in state.specialist_findings.items():
-            if finding.structured_output:
-                md_lines = format_dict_as_markdown(finding.structured_output, indent=0)
-                agent_outputs[name] = "\n".join(md_lines)
-            else:
-                agent_outputs[name] = finding.raw_output[:1500] if finding.raw_output else "[processing...]"
+        agent_outputs, triage_result, forensic_scorecard = build_ui_payloads(state)
 
         _update_progress('assemble', {
             "final_report": state.final_report,
             "agent_outputs": agent_outputs,
+            "triage_result": triage_result,
+            "forensic_scorecard": forensic_scorecard,
             "active_agents": [],
-            "completed_agents": ["planning", "fsa_quant", "forensic_investigator", "narrative_decoder", "moat_architect", "capital_allocator", "synthesis"]
+            "completed_agents": ["planning", "forensic_quant", "forensic_investigator", "narrative_decoder", "moat_architect", "capital_allocator", "management_quality", "synthesis"]
         })
 
         report_data = {
             "final_report": state.final_report,
             "agent_outputs": agent_outputs,
+            "triage_result": triage_result,
+            "forensic_scorecard": forensic_scorecard,
             "rag_stats": rag_stats,
             "status": "completed",
         }
 
-        print(f"[Pipeline] ✅ Report generation complete for {ticker}")
+        logger.info(f"[Pipeline] ✅ Report generation complete for {ticker}")
         return report_data
 
     except Exception as e:

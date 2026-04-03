@@ -1,0 +1,7 @@
+venv/
+.venv/
+chroma_db/
+company_docs/
+__pycache__/
+*.pdf
+.git/

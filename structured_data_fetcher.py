@@ -2,12 +2,12 @@
 structured_data_fetcher.py — Structured API Data Router for Novus MAS
 
 FIX 2: Bypasses unstructured PDF OCR for quant agents by routing clean,
-structured financial data from Screener.in directly to QUANT agents
-(FSA_QUANT, CAPITAL_ALLOCATOR) while NLP agents continue receiving raw text.
+structured financial data from Screener.in directly to quant agents
+(forensic_quant, capital_allocator) while NLP agents continue receiving raw text.
 
 Architecture:
   PDF Text → narrative_decoder, moat_architect
-  Screener JSON API → fsa_quant, capital_allocator, (valuation)
+  Screener JSON API → forensic_quant, capital_allocator, (valuation)
 """
 
 import json
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # ── Agent Classification ─────────────────────────────────────────────────────
 
-QUANT_AGENTS = {"fsa_quant", "capital_allocator"}
+QUANT_AGENTS = {"fsa_quant", "forensic_quant", "capital_allocator"}
 NLP_AGENTS = {"narrative_decoder", "moat_architect", "forensic_investigator"}
 
 
@@ -77,15 +77,102 @@ class StructuredDataFetcher:
             logger.error(f"[StructuredDataFetcher] Failed for {ticker}: {e}")
             return {"ticker": ticker, "tables": {}, "error": str(e)}
 
+    @staticmethod
+    def _coerce_numeric(value: Any) -> Optional[float]:
+        """Best-effort conversion of scraped cell values into floats."""
+        if value is None:
+            return None
+
+        if isinstance(value, (int, float)):
+            return float(value)
+
+        text = str(value).strip()
+        if not text or text.lower() == "nan" or text == "-":
+            return None
+
+        cleaned = (
+            text.replace(",", "")
+            .replace("%", "")
+            .replace("x", "")
+            .replace("₹", "")
+            .strip()
+        )
+
+        try:
+            return float(cleaned)
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _find_row_label(row: Dict[str, Any]) -> str:
+        for key, value in row.items():
+            if key.startswith("Unnamed") or key.lower() == "line item":
+                return str(value).strip()
+
+        first_value = next(iter(row.values()), "")
+        return str(first_value).strip()
+
+    @classmethod
+    def _extract_latest_metric(
+        cls, rows: list[Dict[str, Any]], aliases: tuple[str, ...]
+    ) -> Optional[float]:
+        """
+        Find the latest numeric value for a row whose label loosely matches one
+        of the provided aliases.
+        """
+        normalized_aliases = tuple(alias.lower() for alias in aliases)
+
+        for row in rows:
+            label = cls._find_row_label(row).lower()
+            if not label:
+                continue
+
+            if not any(alias in label for alias in normalized_aliases):
+                continue
+
+            numeric_values: list[float] = []
+            for key, value in row.items():
+                key_lower = str(key).lower()
+                if key_lower.startswith("unnamed") or key_lower == "line item":
+                    continue
+
+                numeric = cls._coerce_numeric(value)
+                if numeric is not None:
+                    numeric_values.append(numeric)
+
+            if numeric_values:
+                return numeric_values[-1]
+
+        return None
+
+    def fetch_raw(self, ticker: str) -> Dict[str, Any]:
+        """
+        Backward-compatible accessor used by planning-time assumption tuning.
+        Returns the fetched tables plus a few flattened top-level metrics.
+        """
+        structured = self.fetch(ticker)
+        ratios_rows = structured.get("tables", {}).get("Ratios", [])
+
+        debt_equity = self._extract_latest_metric(
+            ratios_rows,
+            (
+                "debt to equity",
+                "debt/equity",
+                "debt-equity",
+                "debt equity",
+            ),
+        )
+
+        return {
+            **structured,
+            "debt_equity": debt_equity,
+        }
+
     def format_as_context(self, ticker: str) -> str:
         """
-        Convert structured financial tables into a clean text context
-        string optimized for quant agent consumption.
-
-        Format:
-          === PROFIT & LOSS (10Y) ===
-          | Line Item | Mar 2020 | Mar 2021 | ... |
-          | Revenue   | 38,785   | 45,311   | ... |
+        Convert structured financial tables into canonical JSON so downstream
+        agents can parse it deterministically instead of reverse-engineering a
+        markdown table dump.
         """
         data = self.fetch(ticker)
         tables = data.get("tables", {})
@@ -93,40 +180,12 @@ class StructuredDataFetcher:
         if not tables:
             return f"[NO STRUCTURED DATA AVAILABLE FOR {ticker}]"
 
-        lines = [
-            f"=== STRUCTURED FINANCIAL DATA: {ticker} ===",
-            f"Source: {data.get('source', 'screener.in')}",
-            "",
-        ]
-
-        for title, rows in tables.items():
-            lines.append(f"--- {title.upper()} ---")
-            if not rows:
-                lines.append("  [No data]")
-                continue
-
-            # Extract column headers
-            headers = list(rows[0].keys())
-            # Clean "Unnamed: 0" to "Line Item"
-            clean_headers = [
-                "Line Item" if h.startswith("Unnamed") else h
-                for h in headers
-            ]
-            lines.append("  | " + " | ".join(clean_headers) + " |")
-
-            # Each row
-            for row in rows:
-                vals = []
-                for h in headers:
-                    v = row.get(h, "")
-                    if v is None or str(v) == "nan":
-                        v = ""
-                    vals.append(str(v))
-                lines.append("  | " + " | ".join(vals) + " |")
-
-            lines.append("")
-
-        return "\n".join(lines)
+        payload = {
+            "ticker": data.get("ticker", ticker.upper()),
+            "source": data.get("source", "screener.in"),
+            "tables": tables,
+        }
+        return json.dumps(payload, ensure_ascii=False, indent=2)
 
     @staticmethod
     def should_receive_structured_data(agent_name: str) -> bool:

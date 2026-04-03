@@ -31,3 +31,4 @@ company_docs/
 # Local testing scripts
 get_financial_data_output_testing.py
 *_output_testing.py
+.vercel

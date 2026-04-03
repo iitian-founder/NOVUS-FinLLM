@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 # Import the existing Gemini caller from the parent module
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from logic import call_gemini
+from llm_clients import call_gemini
 
 
 # ── Data Models ──────────────────────────────────────────────────────────────

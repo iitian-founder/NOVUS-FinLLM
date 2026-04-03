@@ -12,10 +12,10 @@
             theme: {
                 extend: {
                     colors: {
-                        base: { bg: '#0f172a', card: '#1e293b', elevated: '#283548', border: '#334155', borderLight: '#475569' },
-                        accent: { brand: '#06b6d4', brandLight: '#22d3ee', brandDim: 'rgba(6,182,212,0.15)' },
+                        base: { bg: '#0F172A', card: '#1E293B', elevated: '#334155', border: '#475569', borderLight: '#64748B' },
+                        accent: { brand: '#3B82F6', brandLight: '#60A5FA', brandDim: 'rgba(59,130,246,0.15)' },
                         semantic: { red: '#ef4444', amber: '#f59e0b', green: '#10b981', redDim: 'rgba(239,68,68,0.12)', amberDim: 'rgba(245,158,11,0.12)', greenDim: 'rgba(16,185,129,0.12)' },
-                        txt: { primary: '#f1f5f9', secondary: '#94a3b8', muted: '#64748b', dim: '#475569' }
+                        txt: { primary: '#F8FAFC', secondary: '#CBD5E1', muted: '#94A3B8', dim: '#64748B' }
                     },
                     fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
                 }
@@ -32,64 +32,64 @@
 
     <style>
         *, *::before, *::after { box-sizing: border-box; }
-        body { font-family: 'Inter', system-ui, sans-serif; background: #0f172a; min-height: 100vh; color: #f1f5f9; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: #0F172A; min-height: 100vh; color: #F8FAFC; }
 
         /* Card surfaces - Sharp edges */
-        .ws-card { background: #1e293b; border: 1px solid #334155; border-radius: 4px; }
-        .ws-card-flush { background: #1e293b; border: 1px solid #334155; border-radius: 4px; overflow: hidden; }
+        .ws-card { background: #1E293B; border: 1px solid #475569; border-radius: 6px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .ws-card-flush { background: #1E293B; border: 1px solid #475569; border-radius: 6px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
 
         /* Tabs */
-        .tab-btn { padding: 8px 16px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s; background: none; border-top: none; border-left: none; border-right: none; white-space: nowrap; }
-        .tab-btn:hover { color: #94a3b8; }
-        .tab-btn.active { color: #22d3ee; border-bottom-color: #06b6d4; }
+        .tab-btn { padding: 12px 20px; font-size: 0.8rem; font-weight: 600; text-transform: none; color: #94A3B8; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s; background: none; border-top: none; border-left: none; border-right: none; white-space: nowrap; }
+        .tab-btn:hover { color: #CBD5E1; }
+        .tab-btn.active { color: #3B82F6; border-bottom-color: #3B82F6; }
         .tab-content { display: none; }
         .tab-content.active { display: block; animation: fadeUp 0.3s ease-out; }
 
         /* Insight cards */
-        .insight-card { background: #283548; border: 1px solid #334155; border-radius: 4px; padding: 16px; transition: all 0.25s; }
-        .insight-card:hover { border-color: #475569; }
-        .insight-card .ic-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; margin-bottom: 4px; font-weight: 600; }
-        .insight-card .ic-value { font-size: 1.4rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: #f1f5f9; }
-        .insight-card .ic-sub { font-size: 0.7rem; color: #94a3b8; margin-top: 4px; }
+        .insight-card { background: #334155; border: 1px solid #475569; border-radius: 6px; padding: 16px; transition: all 0.25s; box-shadow: inset 0 1px 0 rgba(255,255,255,0.05); }
+        .insight-card:hover { border-color: #64748B; }
+        .insight-card .ic-label { font-size: 0.7rem; color: #94A3B8; margin-bottom: 6px; font-weight: 500; display: flex; align-items: center; justify-content: space-between; }
+        .insight-card .ic-value { font-size: 1.5rem; font-weight: 600; font-family: 'JetBrains Mono', monospace; color: #F8FAFC; }
+        .insight-card .ic-sub { font-size: 0.75rem; font-weight: 500; margin-top: 6px; display: flex; align-items: center; gap: 4px; }
 
         /* Risk indicator */
-        .risk-badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.05em; font-family: 'JetBrains Mono', monospace; border: 1px solid transparent; }
-        .risk-low { background: rgba(16,185,129,0.12); color: #10b981; border-color: rgba(16,185,129,0.3); }
-        .risk-medium { background: rgba(245,158,11,0.12); color: #f59e0b; border-color: rgba(245,158,11,0.3); }
-        .risk-high { background: rgba(239,68,68,0.12); color: #ef4444; border-color: rgba(239,68,68,0.3); }
+        .risk-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; border: 1px solid transparent; }
+        .risk-low { background: rgba(16,185,129,0.1); color: #10b981; border-color: rgba(16,185,129,0.2); }
+        .risk-medium { background: rgba(245,158,11,0.1); color: #f59e0b; border-color: rgba(245,158,11,0.2); }
+        .risk-high { background: rgba(239,68,68,0.1); color: #ef4444; border-color: rgba(239,68,68,0.2); }
 
         /* Report prose - High Density */
-        .report-prose { font-family: 'Inter', system-ui, sans-serif; line-height: 1.5; font-size: 0.85rem; color: #cbd5e1; }
-        .report-prose h1 { font-family: 'JetBrains Mono', monospace; font-size: 1.15rem; font-weight: 700; color: #f1f5f9; margin: 1.25rem 0 0.5rem; padding-bottom: 0.25rem; border-bottom: 1px solid #334155; letter-spacing: 0.05em; text-transform: uppercase; }
-        .report-prose h2 { font-family: 'JetBrains Mono', monospace; font-size: 0.95rem; font-weight: 700; color: #f1f5f9; margin: 1.25rem 0 0.5rem; padding-bottom: 0.25rem; border-bottom: 1px solid #334155; letter-spacing: 0.05em; text-transform: uppercase; }
-        .report-prose h3 { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 600; color: #e2e8f0; margin: 1rem 0 0.25rem; letter-spacing: 0.05em; text-transform: uppercase; }
-        .report-prose p { margin-bottom: 0.5rem; }
-        .report-prose ul { list-style-type: square; padding-left: 1.25rem; margin-bottom: 0.5rem; }
-        .report-prose ol { list-style-type: decimal; padding-left: 1.25rem; margin-bottom: 0.5rem; }
-        .report-prose li { margin-bottom: 0.15rem; }
-        .report-prose strong { color: #f1f5f9; font-weight: 600; }
-        .report-prose blockquote { border-left: 2px solid #06b6d4; padding: 0.25rem 0.75rem; margin: 0.5rem 0; background: rgba(6,182,212,0.06); }
-        .report-prose blockquote p { color: #22d3ee; margin: 0; }
-        .report-prose table { width: 100%; border-collapse: collapse; margin: 0.5rem 0; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
-        .report-prose th { background: #283548; font-weight: 600; color: #e2e8f0; text-transform: uppercase; font-size: 0.65rem; letter-spacing: 0.05em; padding: 6px 10px; border: 1px solid #334155; text-align: left; }
-        .report-prose td { padding: 4px 10px; border: 1px solid #334155; color: #cbd5e1; font-variant-numeric: tabular-nums; }
-        .report-prose tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
-        .report-prose tr:hover td { background: rgba(6,182,212,0.04); }
-        .report-prose code { background: #283548; color: #22d3ee; padding: 0px 4px; border-radius: 2px; font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; border: 1px solid #334155; }
+        .report-prose { font-family: 'Inter', system-ui, sans-serif; line-height: 1.6; font-size: 0.9rem; color: #CBD5E1; }
+        .report-prose h1 { font-family: 'Inter', sans-serif; font-size: 1.25rem; font-weight: 600; color: #F8FAFC; margin: 1.5rem 0 0.75rem; padding-bottom: 0.25rem; border-bottom: 1px solid #475569; }
+        .report-prose h2 { font-family: 'Inter', sans-serif; font-size: 1.1rem; font-weight: 600; color: #F8FAFC; margin: 1.25rem 0 0.5rem; padding-bottom: 0.25rem; border-bottom: 1px solid #475569; }
+        .report-prose h3 { font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; color: #E2E8F0; margin: 1rem 0 0.25rem; }
+        .report-prose p { margin-bottom: 0.75rem; }
+        .report-prose ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 0.75rem; }
+        .report-prose ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 0.75rem; }
+        .report-prose li { margin-bottom: 0.25rem; }
+        .report-prose strong { color: #F8FAFC; font-weight: 600; }
+        .report-prose blockquote { border-left: 3px solid #3B82F6; padding: 0.25rem 1rem; margin: 1rem 0; background: rgba(59,130,246,0.05); color: #94A3B8; font-style: italic; }
+        .report-prose table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+        .report-prose th { background: #334155; font-weight: 600; color: #F8FAFC; padding: 8px 12px; border-bottom: 2px solid #475569; text-align: left; }
+        .report-prose td { padding: 6px 12px; border-bottom: 1px solid #475569; color: #CBD5E1; font-variant-numeric: tabular-nums; }
+        .report-prose tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+        .report-prose tr:hover td { background: rgba(59,130,246,0.05); }
+        .report-prose code { background: #334155; color: #60A5FA; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace; border: 1px solid #475569; }
 
         /* Data tables (screener) */
-        .data-table { width: 100%; border-collapse: collapse; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; }
+        .data-table { width: 100%; border-collapse: separate; border-spacing: 0; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
         .data-table thead { position: sticky; top: 0; z-index: 10; }
-        .data-table th { background: #283548; color: #e2e8f0; font-weight: 600; padding: 6px 8px; text-align: left; border-bottom: 2px solid #475569; font-size: 0.65rem; letter-spacing: 0.05em; text-transform: uppercase; }
-        .data-table td { padding: 4px 8px; border-bottom: 1px solid rgba(51,65,85,0.5); color: #94a3b8; }
-        .data-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
-        .data-table tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
-        .data-table tr:hover td { background: rgba(6,182,212,0.05); color: #e2e8f0; }
-        .data-table td.line-item { color: #e2e8f0; font-weight: 500; position: sticky; left: 0; background: #1e293b; border-right: 1px solid #334155; z-index: 5; }
-        .data-table tr:nth-child(even) td.line-item { background: #1f2b3d; }
+        .data-table th { background: #334155; color: #F8FAFC; font-weight: 600; padding: 8px 12px; text-align: left; border-bottom: 2px solid #64748B; font-family: 'Inter', sans-serif; font-size: 0.75rem; }
+        .data-table td { padding: 6px 12px; border-bottom: 1px solid #475569; color: #94A3B8; }
+        .data-table td.num { text-align: right; font-variant-numeric: tabular-nums; color: #E2E8F0; }
+        .data-table tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+        .data-table tr:hover td { background: rgba(59,130,246,0.08); color: #F8FAFC; }
+        .data-table td.line-item { color: #F8FAFC; font-weight: 500; font-family: 'Inter', sans-serif; position: sticky; left: 0; background: #1E293B; border-right: 1px solid #475569; z-index: 5; box-shadow: 2px 0 5px rgba(0,0,0,0.05); }
+        .data-table tr:nth-child(even) td.line-item { background: #243147; }
 
-        /* Terminal badge */
-        .calc-badge { background: rgba(6,182,212,0.12); color: #22d3ee; padding: 0px 4px; border-radius: 2px; font-weight: 600; font-size: 0.75rem; border: 1px solid rgba(6,182,212,0.3); font-family: 'JetBrains Mono', monospace; }
+        /* Citation badge */
+        .calc-badge { background: #334155; color: #94A3B8; padding: 2px 6px; border-radius: 4px; font-weight: 500; font-size: 0.7rem; border: 1px solid #475569; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; }
+        .calc-badge:hover { background: #475569; color: #F8FAFC; }
 
         /* Animations */
         @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -98,41 +98,58 @@
         /* Scrollbar */
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(6,182,212,0.3); border-radius: 0; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(6,182,212,0.5); }
+        ::-webkit-scrollbar-thumb { background: rgba(0,229,153,0.3); border-radius: 0; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(0,229,153,0.5); }
 
         /* Chat Copilot - High Density */
-        .copilot-panel { display: flex; flex-direction: column; height: calc(100vh - 80px); position: sticky; top: 72px; overflow: hidden; }
-        .copilot-messages { flex: 1; overflow-y: auto; padding: 12px; scroll-behavior: smooth; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
-        .chat-msg { margin-bottom: 12px; display: flex; flex-direction: column; }
+        .copilot-panel { display: flex; flex-direction: column; height: calc(100vh - 80px); position: sticky; top: 72px; overflow: hidden; border-radius: 8px; border: 1px solid #475569; }
+        .copilot-messages { flex: 1; overflow-y: auto; padding: 16px; scroll-behavior: smooth; font-family: 'Inter', sans-serif; font-size: 0.85rem; }
+        .chat-msg { margin-bottom: 16px; display: flex; flex-direction: column; }
         .chat-msg.user { align-items: flex-end; }
         .chat-msg.assistant { align-items: flex-start; }
-        .chat-bubble { max-width: 95%; padding: 8px 10px; line-height: 1.5; color: #cbd5e1; }
-        .chat-msg.user .chat-bubble { color: #06b6d4; border-right: 2px solid #06b6d4; text-align: right; }
-        .chat-msg.assistant .chat-bubble { border-left: 2px solid #334155; }
-        .chat-bubble h1, .chat-bubble h2, .chat-bubble h3 { font-size: 0.8rem; font-weight: 600; margin: 6px 0 2px; color: #22d3ee; text-transform: uppercase; }
-        .chat-bubble ul { padding-left: 12px; margin: 4px 0; }
-        .chat-bubble li { margin-bottom: 1px; }
-        .chat-bubble strong { color: #f1f5f9; }
-        .chat-bubble code { background: #283548; color: #22d3ee; padding: 0 4px; border: 1px solid #334155; }
-        .chat-sources { font-size: 0.65rem; color: #64748b; margin-top: 4px; padding: 4px 8px; border-left: 2px solid #475569; max-width: 95%; }
+        .chat-bubble { max-width: 90%; padding: 10px 14px; line-height: 1.5; color: #CBD5E1; border-radius: 8px; }
+        .chat-msg.user .chat-bubble { background: #3B82F6; color: #FFFFFF; border-radius: 8px 8px 0px 8px; }
+        .chat-msg.assistant .chat-bubble { background: #334155; border: 1px solid #475569; border-radius: 8px 8px 8px 0px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .chat-bubble h1, .chat-bubble h2, .chat-bubble h3 { font-size: 0.9rem; font-weight: 600; margin: 8px 0 4px; color: #F8FAFC; }
+        .chat-bubble ul { padding-left: 16px; margin: 6px 0; }
+        .chat-bubble li { margin-bottom: 3px; }
+        .chat-bubble strong { color: #FFFFFF; }
+        .chat-bubble code { background: #1E293B; color: #60A5FA; padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.8em; }
+        .chat-sources { font-size: 0.7rem; color: #94A3B8; margin-top: 6px; padding: 4px 10px; border-left: 2px solid #64748B; max-width: 90%; }
+
+        .copilot-input-container { padding: 12px; border-top: 1px solid #475569; background: #1E293B; display: flex; flex-direction: column; gap: 8px; }
+        .copilot-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+        .copilot-chip { font-size: 0.7rem; padding: 4px 10px; border-radius: 12px; background: #334155; border: 1px solid #475569; color: #CBD5E1; cursor: pointer; white-space: nowrap; transition: all 0.2s; }
+        .copilot-chip:hover { background: #475569; color: #F8FAFC; }
         
-        .copilot-input { padding: 10px 12px; border-top: 1px solid #334155; background: #283548; display: flex; gap: 6px; }
-        .copilot-input input { flex: 1; background: #0f172a; border: 1px solid #334155; border-radius: 2px; padding: 8px 10px; color: #06b6d4; font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; outline: none; transition: border-color 0.2s; }
-        .copilot-input input:focus { border-color: #06b6d4; box-shadow: 0 0 0 1px rgba(6,182,212,0.2); }
-        .copilot-input input::placeholder { color: #475569; }
-        .copilot-send { width: 32px; height: 32px; border-radius: 2px; background: #1e293b; border: 1px solid #334155; color: #06b6d4; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: all 0.2s; }
-        .copilot-send:hover { border-color: #06b6d4; background: rgba(6,182,212,0.1); }
-        .copilot-send:disabled { opacity: 0.3; cursor: not-allowed; border-color: #334155; background: transparent; color: #475569; }
+        .copilot-input { display: flex; gap: 8px; align-items: center; background: #0F172A; border: 1px solid #475569; border-radius: 8px; padding: 6px 8px; transition: border-color 0.2s; }
+        .copilot-input:focus-within { border-color: #3B82F6; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+        .copilot-input input { flex: 1; background: transparent; border: none; color: #F8FAFC; font-size: 0.85rem; outline: none; padding: 4px 6px; }
+        .copilot-input input::placeholder { color: #64748B; }
+        .copilot-send { width: 32px; height: 32px; border-radius: 6px; background: #3B82F6; color: #FFFFFF; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: all 0.2s; border: none; font-weight: bold; }
+        .copilot-send:hover { background: #2563EB; }
+        .copilot-send:disabled { opacity: 0.5; cursor: not-allowed; background: #475569; color: #94A3B8; }
 
         /* Loader */
-        .typing-indicator span { display: inline-block; width: 4px; height: 4px; background: #06b6d4; margin: 0 1px; animation: typing 1s infinite ease-in-out; }
+        .typing-indicator span { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #94A3B8; margin: 0 2px; animation: typing 1.4s infinite ease-in-out; }
         .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
         .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
-        @keyframes typing { 0%, 80%, 100% { transform: scale(0.5); opacity: 0.3; } 40% { transform: scale(1); opacity: 1; } }
+        @keyframes typing { 0%, 80%, 100% { transform: translateY(0); opacity: 0.5; } 40% { transform: translateY(-4px); opacity: 1; } }
 
-        /* Live terminal feed */
-        .live-log { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; line-height: 1.5; color: #64748b; }
+        /* Stepper styles */
+        .progress-step { display: flex; align-items: flex-start; gap: 12px; position: relative; padding-bottom: 16px; }
+        .progress-step:last-child { padding-bottom: 0; }
+        .progress-step:not(:last-child)::after { content: ''; position: absolute; left: 11px; top: 24px; bottom: 0; width: 2px; background: #334155; }
+        .progress-step.completed:not(:last-child)::after { background: #3B82F6; }
+        .step-icon { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; z-index: 2; transition: all 0.3s; }
+        .step-icon.idle { background: #1E293B; border: 2px solid #475569; color: #64748B; }
+        .step-icon.active { background: #3B82F6; border: 2px solid #60A5FA; color: #FFF; box-shadow: 0 0 10px rgba(59,130,246,0.3); }
+        .step-icon.active svg { animation: spin 1.5s linear infinite; }
+        .step-icon.completed { background: #10B981; border: 2px solid #34D399; color: #FFF; }
+        .step-content { flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 24px; }
+        .step-title { font-size: 0.8rem; font-weight: 500; color: #94A3B8; transition: color 0.3s; }
+        .step-title.active { color: #3B82F6; font-weight: 600; }
+        .step-title.completed { color: #F8FAFC; }
     </style>
 </head>
 
@@ -140,21 +157,17 @@
     <div class="min-h-screen flex flex-col">
 
         <!-- ═══ HEADER ═══ -->
-        <header class="ws-card sticky top-0 z-50 rounded-none border-x-0 border-t-0 bg-base-bg">
-            <div class="max-w-[1920px] mx-auto px-4 sm:px-5">
-                <div class="flex items-center justify-between h-[56px]">
+        <header class="ws-card sticky top-0 z-50 rounded-none border-x-0 border-t-0 bg-base-card shadow-sm">
+            <div class="max-w-[1920px] mx-auto px-4 sm:px-6">
+                <div class="flex items-center justify-between h-[60px]">
                     <div class="flex items-center space-x-3">
-                        <div class="w-7 h-7 bg-base-elevated border border-accent-brand flex items-center justify-center">
-                            <span class="text-accent-brand font-mono font-bold text-sm">>_</span>
-                        </div>
-                        <div>
-                            <h1 class="text-sm font-bold text-txt-primary tracking-widest uppercase font-mono">Novus</h1>
-                            <p class="text-[9px] text-accent-brandLight font-mono opacity-80 uppercase tracking-widest mt-[1px]">Terminal_OS v2.0</p>
+                        <div class="flex items-center text-xl font-bold font-sans tracking-wide">
+                            <span class="text-txt-primary">Novus</span><span class="text-accent-brandLight ml-1 font-light">FinLLM</span>
                         </div>
                     </div>
                     <div class="flex items-center">
-                        <button id="export-pdf-btn" class="hidden items-center px-3 py-1.5 text-[11px] font-mono tracking-wider font-semibold rounded-sm border border-accent-brand text-accent-brand hover:bg-accent-brand/10 transition-colors">
-                            <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        <button id="export-pdf-btn" class="hidden items-center px-4 py-2 text-xs font-sans font-semibold rounded-md border border-base-border text-txt-secondary hover:bg-base-elevated hover:text-txt-primary transition-colors">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                             Export PDF
                         </button>
                     </div>
@@ -163,44 +176,45 @@
         </header>
 
         <!-- ═══ MAIN WORKSPACE ═══ -->
-        <main class="flex-grow max-w-[1920px] mx-auto w-full px-4 sm:px-5 py-4">
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <main class="flex-grow max-w-[1920px] mx-auto w-full px-4 sm:px-6 py-6">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
                 <!-- ═══ LEFT: Command Center ═══ -->
                 <div class="lg:col-span-2">
-                    <div class="ws-card p-4 sticky top-[72px] space-y-4">
+                    <div class="ws-card p-5 sticky top-[80px] space-y-5">
                         <form id="report-form" class="space-y-4">
                             <div>
-                                <label for="ticker" class="block text-[10px] font-mono text-txt-muted uppercase tracking-wider mb-1">Target Ticker</label>
-                                <input type="text" name="ticker" id="ticker" class="w-full rounded-sm border border-base-border bg-base-bg text-accent-brand font-mono px-2.5 py-2 text-xs focus:border-accent-brand outline-none transition-colors uppercase placeholder-txt-dim" placeholder="E.G. RELIANCE" required>
+                                <label for="ticker" class="block text-xs font-sans font-medium text-txt-secondary mb-1.5">Target Company</label>
+                                <input type="text" name="ticker" id="ticker" class="w-full rounded-md border border-base-border bg-base-bg text-txt-primary font-mono px-3 py-2.5 text-sm focus:border-accent-brand outline-none transition-colors placeholder-txt-muted shadow-sm" placeholder="e.g. RELIANCE" required>
                             </div>
                             <div>
-                                <label class="block text-[10px] font-mono text-txt-muted uppercase tracking-wider mb-1">Upload Report(s)</label>
-                                <div id="drop-zone" class="flex justify-center px-2 py-3 border border-dashed border-base-border bg-base-bg rounded-sm cursor-pointer hover:border-accent-brand transition-colors">
+                                <label class="block text-xs font-sans font-medium text-txt-secondary mb-1.5">Supporting Documents</label>
+                                <div id="drop-zone" class="flex justify-center px-4 py-6 border-2 border-dashed border-base-border bg-base-bg rounded-md cursor-pointer hover:border-accent-brand hover:bg-base-elevated transition-colors">
                                     <div class="text-center">
-                                        <p class="text-[10px] font-mono text-txt-muted">Drop PDFs here</p>
+                                        <svg class="mx-auto h-8 w-8 text-txt-muted mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                                        <p class="text-xs font-sans text-txt-secondary">Drop PDFs or click to upload</p>
                                         <input id="files" name="files" type="file" class="sr-only" multiple accept=".pdf" required>
                                     </div>
                                 </div>
-                                <div id="file-list" class="mt-1.5 text-[10px] font-mono text-txt-muted"></div>
+                                <div id="file-list" class="mt-2 text-xs font-sans text-txt-muted"></div>
                             </div>
-                            <button type="submit" id="generate-btn" class="w-full flex justify-center items-center py-2 px-3 rounded-sm border border-accent-brand bg-base-elevated text-accent-brand hover:bg-accent-brand/10 transition-colors disabled:opacity-30">
-                                <span id="btn-text" class="text-[11px] font-mono tracking-widest uppercase font-bold">Execute</span>
-                                <div id="btn-loader" class="hidden ml-2"><div class="w-3 h-3 border-2 border-accent-brand/30 border-t-accent-brand rounded-full animate-spin"></div></div>
+                            <button type="submit" id="generate-btn" class="w-full flex justify-center items-center py-2.5 px-4 rounded-md bg-accent-brand text-white hover:opacity-90 transition-colors font-semibold shadow-sm disabled:opacity-50">
+                                <span id="btn-text" class="text-sm font-sans tracking-wide">Generate Analysis</span>
+                                <div id="btn-loader" class="hidden ml-2"><div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div></div>
                             </button>
                         </form>
 
-                        <div class="flex items-center gap-2"><div class="flex-grow border-t border-base-border"></div><span class="text-[9px] font-mono text-txt-dim uppercase">or</span><div class="flex-grow border-t border-base-border"></div></div>
+                        <div class="flex items-center gap-2"><div class="flex-grow border-t border-base-border"></div><span class="text-[10px] font-sans text-txt-muted uppercase">or</span><div class="flex-grow border-t border-base-border"></div></div>
 
-                        <button id="rag-analyze-btn" class="w-full flex justify-center items-center py-1.5 px-3 border border-base-border rounded-sm bg-transparent hover:border-txt-muted transition-colors disabled:opacity-30">
-                            <span id="rag-btn-text" class="text-[10px] font-mono tracking-wider text-txt-secondary uppercase">Query Stored</span>
-                            <div id="rag-btn-loader" class="hidden ml-2"><div class="w-3 h-3 border-2 border-txt-muted border-t-txt-primary rounded-full animate-spin"></div></div>
+                        <button id="rag-analyze-btn" class="w-full flex justify-center items-center py-2 px-4 border border-base-border rounded-md bg-transparent hover:bg-base-elevated transition-colors disabled:opacity-50 text-txt-secondary hover:text-txt-primary">
+                            <span id="rag-btn-text" class="text-xs font-sans font-medium tracking-wide">Query Stored Index</span>
+                            <div id="rag-btn-loader" class="hidden ml-2"><div class="w-4 h-4 border-2 border-txt-muted border-t-txt-primary rounded-full animate-spin"></div></div>
                         </button>
 
                         <!-- Agent Pipeline Status -->
-                        <div id="agent-pipeline" class="hidden pt-2 border-t border-base-border mt-4">
-                            <h3 class="text-[9px] font-bold font-mono text-txt-dim uppercase tracking-widest mb-2">Execution Pipeline</h3>
-                            <div class="space-y-[2px]" id="agent-status-list">
+                        <div id="agent-pipeline" class="hidden pt-4 border-t border-base-border mt-4">
+                            <h3 class="text-xs font-semibold font-sans text-txt-primary mb-3">Execution Pipeline</h3>
+                            <div class="space-y-0" id="agent-status-list">
                                 <!-- Pipeline items auto-generate here -->
                             </div>
                         </div>
@@ -211,68 +225,170 @@
                 <div class="lg:col-span-7">
                     <div class="ws-card-flush min-h-[85vh] flex flex-col">
                         <!-- Tab Bar -->
-                        <div class="flex border-b border-base-border overflow-x-auto bg-base-elevated px-2" id="tab-bar">
-                            <button class="tab-btn active font-mono text-[10px]" data-tab="synthesis">Synthesis_Log</button>
-                            <button class="tab-btn font-mono text-[10px]" data-tab="forensic">Forensic_Audit</button>
-                            <button class="tab-btn font-mono text-[10px]" data-tab="financial">Financial_Data</button>
-                            <button class="tab-btn font-mono text-[10px]" data-tab="sources">Source_Store</button>
+                        <div class="flex border-b border-base-border overflow-x-auto bg-base-card px-4" id="tab-bar">
+                            <button class="tab-btn active" data-tab="synthesis">Executive Summary</button>
+                            <button class="tab-btn" data-tab="forensic">Risk & Forensic Audit</button>
+                            <button class="tab-btn" data-tab="financial">Quant Canvas</button>
+                            <button class="tab-btn" data-tab="sources">Source Library</button>
                         </div>
 
                         <!-- Panel Bodies -->
                         <div class="flex-1 relative bg-base-bg">
                             
                             <!-- Tab: Synthesis (default) -->
-                            <div class="tab-content active p-4 sm:p-5" id="tab-synthesis">
+                            <div class="tab-content active p-6" id="tab-synthesis">
                                 <!-- Placeholder state -->
                                 <div id="report-placeholder" class="text-center py-24">
-                                    <div class="w-12 h-12 border border-base-border bg-base-elevated flex items-center justify-center mx-auto mb-4">
-                                        <span class="text-accent-brand font-mono font-bold">>_</span>
+                                    <div class="w-16 h-16 bg-base-card rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm border border-base-border">
+                                        <svg class="w-8 h-8 text-txt-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                     </div>
-                                    <h2 class="text-sm font-mono font-bold text-txt-primary uppercase tracking-widest mb-1">System Ready</h2>
-                                    <p class="text-[10px] font-mono text-txt-secondary max-w-sm mx-auto uppercase">Awaiting target parameters for MAS initialization.</p>
+                                    <h2 class="text-lg font-sans font-semibold text-txt-primary mb-2">Awaiting Target Parameters</h2>
+                                    <p class="text-sm font-sans text-txt-secondary max-w-sm mx-auto">Enter a target ticker and upload supporting PDF documents to initialize the Multi-Agent System.</p>
                                 </div>
 
-                                <!-- Live Terminal Feed -->
-                                <div id="live-terminal" class="hidden font-mono border border-base-border bg-[#0a0f18] p-4 rounded-sm">
-                                    <div class="flex items-center justify-between mb-4 border-b border-base-border pb-2">
-                                        <span class="text-[10px] text-txt-muted uppercase tracking-widest">> Terminal Subsystem Status</span>
-                                        <span class="text-[10px] text-accent-brand" id="live-counter">[ 0 / 5 ] THREADS</span>
+                                <!-- Live Engine Feed (Formerly Terminal) -->
+                                <div id="live-terminal" class="hidden bg-base-card border border-base-border rounded-lg p-6 shadow-sm">
+                                    <div class="flex items-center justify-between mb-6 pb-4 border-b border-base-border">
+                                        <div class="flex flex-col">
+                                            <span class="text-sm font-sans font-semibold text-txt-primary">Engine Initialization</span>
+                                            <span class="text-xs font-sans text-txt-secondary">Multi-agent analysis framework running</span>
+                                        </div>
+                                        <span class="text-xs font-sans font-semibold px-3 py-1 bg-accent-brand/10 text-accent-brand rounded-full border border-accent-brand/30" id="live-counter">0 / 5 Agents Active</span>
                                     </div>
-                                    <div id="live-agent-feed" class="space-y-3"></div>
+                                    <div id="live-agent-feed" class="space-y-4"></div>
                                 </div>
 
                                 <!-- Insight Dashboard (Final Report) -->
                                 <div id="insight-dashboard" class="hidden">
-                                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4" id="insight-cards"></div>
-                                    <div id="report-content" class="report-prose px-1"></div>
+                                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6" id="insight-cards"></div>
+                                    <div class="ws-card p-6 shadow-sm">
+                                        <div id="report-content" class="report-prose px-1"></div>
+                                    </div>
                                 </div>
 
                                 <!-- Loader -->
-                                <div id="report-loader" class="hidden text-center py-20 font-mono">
-                                    <div class="w-8 h-8 mx-auto border-2 border-base-border border-t-accent-brand animate-spin mb-4"></div>
-                                    <p class="text-[11px] text-txt-primary uppercase tracking-wider" id="loader-stage">> INITIALIZING...</p>
+                                <div id="report-loader" class="hidden text-center py-20 font-sans">
+                                    <div class="w-10 h-10 mx-auto border-4 border-base-border border-t-accent-brand rounded-full animate-spin mb-4"></div>
+                                    <p class="text-sm font-semibold text-txt-primary tracking-wide" id="loader-stage">Initializing...</p>
                                 </div>
-                                <div id="error-message" class="hidden text-center p-3 mt-4 text-[10px] font-mono text-semantic-red border border-semantic-red bg-semantic-redDim uppercase tracking-wide"></div>
+                                <div id="error-message" class="hidden text-center p-4 mt-6 text-sm font-sans font-semibold text-semantic-red border border-semantic-red/50 bg-semantic-red/10 rounded-md"></div>
                             </div>
 
                             <!-- Tab: Forensic Audit -->
-                            <div class="tab-content p-4" id="tab-forensic">
-                                <div id="forensic-tab-content" class="space-y-3">
-                                    <p class="text-[10px] font-mono text-txt-dim text-center py-10 uppercase">> NO_DATA_AVAILABLE</p>
+                            <div class="tab-content p-6" id="tab-forensic">
+                                <!-- Top Health Gauge -->
+                                <div id="forensic-header" class="mb-6 flex items-center justify-between ws-card p-5">
+                                    <div>
+                                        <h3 class="text-sm font-sans text-txt-secondary font-medium">Platform Forensic Health</h3>
+                                        <div class="flex items-center gap-3 mt-1">
+                                            <span id="health-gauge" class="text-2xl font-sans font-bold text-txt-primary">Awaiting Scan</span>
+                                            <span id="health-badge" class="risk-badge risk-low hidden">--</span>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-xs text-txt-muted uppercase font-sans tracking-wide mb-1">Eradicating Narrative Bias</div>
+                                        <div id="quant-triage-status" class="text-sm font-semibold font-sans text-txt-secondary">Pending Output</div>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                    <!-- Critical Alerts / Kill Screen -->
+                                    <div class="ws-card p-5">
+                                        <h3 class="text-sm font-sans font-semibold text-txt-primary border-b border-base-border pb-3 mb-4 flex items-center gap-2">
+                                            <svg class="w-4 h-4 text-semantic-red" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                            Critical Accounting Alerts
+                                        </h3>
+                                        <div id="forensic-alerts" class="space-y-3 report-prose text-sm max-h-[250px] overflow-y-auto pr-2">
+                                            <p class="text-sm text-txt-muted italic">Will populate upon scan completion...</p>
+                                        </div>
+                                    </div>
+                                    <!-- Management Transparency Scorecard -->
+                                    <div class="ws-card p-5">
+                                        <h3 class="text-sm font-sans font-semibold text-txt-primary border-b border-base-border pb-3 mb-4 flex items-center gap-2">
+                                            <svg class="w-4 h-4 text-accent-brandLight" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            Management Evasion Likelihood
+                                        </h3>
+                                        <div class="mb-5">
+                                            <div class="flex justify-between text-xs font-sans mb-1">
+                                                <span class="text-txt-secondary font-medium">NLP Evasion Score</span>
+                                                <span id="evasion-score-text" class="text-txt-primary font-bold">--/100</span>
+                                            </div>
+                                            <div class="w-full bg-base-elevated rounded-full h-2 overflow-hidden">
+                                                <div id="evasion-progress" class="bg-blue-500 h-2 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                                            </div>
+                                        </div>
+                                        <div id="mgmt-dodging-log" class="space-y-3 report-prose text-sm max-h-[175px] overflow-y-auto pr-2">
+                                            <p class="text-sm text-txt-muted italic">Scanning narratives for obfuscation...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="forensic-tab-content" class="mt-6 space-y-4">
+                                    <p class="text-sm font-sans text-txt-muted text-center py-6">Pending system processing.</p>
                                 </div>
                             </div>
 
                             <!-- Tab: Financial Data -->
-                            <div class="tab-content p-4" id="tab-financial">
-                                <div id="screener-container">
-                                    <p class="text-[10px] font-mono text-txt-dim text-center py-10 uppercase">> AWAITING_TICKER_FOR_SCREENER_PULL</p>
+                            <div class="tab-content p-6" id="tab-financial">
+                                <div class="mb-6 flex items-center justify-between ws-card p-5">
+                                    <div>
+                                        <h2 id="quant-ticker" class="text-2xl font-sans font-bold text-txt-primary">TICKER</h2>
+                                        <div class="text-sm font-sans text-txt-secondary mt-1">Institutional Quant Canvas</div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-xs text-txt-muted uppercase font-sans tracking-wide mb-1 font-semibold">Novus Rating</div>
+                                        <div id="quant-rating" class="text-3xl font-bold font-sans text-accent-brand">--</div>
+                                    </div>
+                                </div>
+
+                                <!-- 4-card metric grid -->
+                                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                                    <div class="insight-card">
+                                        <div class="ic-label">ROIC Trend</div>
+                                        <div id="quant-roic" class="ic-value">--</div>
+                                        <div id="quant-roic-sub" class="ic-sub text-txt-muted">vs 5Yr Avg</div>
+                                    </div>
+                                    <div class="insight-card">
+                                        <div class="ic-label">Cash Conversion Cycle</div>
+                                        <div id="quant-ccc" class="ic-value">--</div>
+                                        <div id="quant-ccc-sub" class="ic-sub text-txt-muted">--</div>
+                                    </div>
+                                    <div class="insight-card">
+                                        <div class="ic-label">EBITDA/OCF Match</div>
+                                        <div id="quant-ocf" class="ic-value">--</div>
+                                        <div id="quant-ocf-sub" class="ic-sub text-txt-muted">--</div>
+                                    </div>
+                                    <div class="insight-card">
+                                        <div class="ic-label">Implied Growth</div>
+                                        <div id="quant-dcf" class="ic-value">--</div>
+                                        <div id="quant-dcf-sub" class="ic-sub text-txt-muted">Rev. DCF</div>
+                                    </div>
+                                </div>
+
+                                <!-- DuPont Breakdown -->
+                                <div class="ws-card p-5 mb-6">
+                                    <h3 class="text-sm font-sans font-semibold text-txt-primary border-b border-base-border pb-3 mb-4 flex items-center gap-2">
+                                        <svg class="w-4 h-4 text-accent-brandLight" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+                                        DuPont Decomposition Matrix
+                                    </h3>
+                                    <div id="quant-dupont-text" class="text-sm font-sans text-txt-secondary leading-relaxed border-l-4 border-accent-brand bg-accent-brand/5 p-4 rounded-r-md">
+                                        <span class="italic">Analyzing fundamental ROE drivers...</span>
+                                    </div>
+                                </div>
+
+                                <div id="screener-container" class="ws-card p-5 overflow-x-auto">
+                                    <p class="text-sm font-sans text-txt-muted text-center py-10">Awaiting dataset generation.</p>
                                 </div>
                             </div>
 
                             <!-- Tab: Source Docs -->
-                            <div class="tab-content p-4" id="tab-sources">
-                                <div id="sources-content">
-                                    <p class="text-[10px] font-mono text-txt-dim text-center py-10 uppercase">> NO_DOCUMENTS_INDEXED</p>
+                            <div class="tab-content p-6" id="tab-sources">
+                                <div class="ws-card p-5 min-h-[300px]">
+                                    <div id="sources-content">
+                                        <div class="text-center py-16">
+                                            <svg class="mx-auto h-12 w-12 text-txt-muted mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                            <p class="text-sm font-sans text-txt-muted font-medium">No documents have been indexed yet.</p>
+                                            <p class="text-xs font-sans text-txt-dim mt-2">Upload PDFs through the command center.</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -282,28 +398,40 @@
                 <!-- ═══ RIGHT: AI Copilot ═══ -->
                 <div class="lg:col-span-3">
                     <div class="ws-card-flush copilot-panel" id="chat-panel">
-                        <div class="px-3 py-2 border-b border-base-border bg-base-elevated flex items-center justify-between">
-                            <h3 class="text-[10px] font-mono font-bold text-txt-primary uppercase tracking-widest">Sys_Query</h3>
-                            <button id="chat-clear" class="text-txt-dim hover:text-accent-brand text-[9px] font-mono uppercase tracking-widest">Flush</button>
+                        <div class="px-4 py-3 border-b border-base-border bg-base-card flex items-center justify-between">
+                            <h3 class="text-sm font-sans font-semibold text-txt-primary flex items-center gap-2">
+                                <svg class="w-4 h-4 text-accent-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                                Novus Copilot
+                            </h3>
+                            <button id="chat-clear" class="text-txt-muted hover:text-accent-brand text-xs font-sans font-medium transition-colors">Clear</button>
                         </div>
                         <div class="copilot-messages" id="chat-messages">
                             <!-- Rigid Chatbot Tone Initialized by JS -->
                         </div>
-                        <div class="copilot-input">
-                            <span class="text-accent-brand mt-1.5">>_</span>
-                            <input type="text" id="chat-input" placeholder="Execute command..." autocomplete="off">
-                            <button id="chat-send" class="copilot-send" disabled>↵</button>
+                        <div class="copilot-input-container">
+                            <div class="copilot-chips">
+                                <button class="copilot-chip" onclick="document.getElementById('chat-input').value='Analyze earnings quality'; document.getElementById('chat-send').click()">Earnings Quality</button>
+                                <button class="copilot-chip" onclick="document.getElementById('chat-input').value='What are the key risks?'; document.getElementById('chat-send').click()">Key Risks</button>
+                                <button class="copilot-chip" onclick="document.getElementById('chat-input').value='Highlight red flags'; document.getElementById('chat-send').click()">Red Flags</button>
+                            </div>
+                            <div class="copilot-input">
+                                <svg class="w-4 h-4 text-txt-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                <input type="text" id="chat-input" placeholder="Ask Novus a question..." autocomplete="off">
+                                <button id="chat-send" class="copilot-send" disabled>
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
-                    <div id="triage-panel" class="ws-card p-3 mt-3 hidden">
-                        <h3 class="text-[9px] font-mono font-bold text-txt-muted uppercase tracking-widest mb-2 border-b border-base-border pb-1">Triage Kernel</h3>
-                        <div id="triage-content" class="text-[10px] font-mono text-txt-secondary"></div>
+                    <div id="triage-panel" class="ws-card p-4 mt-4 hidden">
+                        <h3 class="text-xs font-sans font-semibold text-txt-primary border-b border-base-border pb-2 mb-3">Triage Results</h3>
+                        <div id="triage-content" class="text-sm font-sans text-txt-secondary"></div>
                     </div>
                     
-                    <div id="forensic-panel" class="ws-card p-3 mt-3 hidden">
-                        <h3 class="text-[9px] font-mono font-bold text-txt-muted uppercase tracking-widest mb-2 border-b border-base-border pb-1">Forensic Status</h3>
-                        <div id="forensic-content" class="text-[10px] font-mono"></div>
+                    <div id="forensic-panel" class="ws-card p-4 mt-4 hidden">
+                        <h3 class="text-xs font-sans font-semibold text-txt-primary border-b border-base-border pb-2 mb-3">Executive Summary</h3>
+                        <div id="forensic-content" class="text-sm font-sans"></div>
                     </div>
                 </div>
             </div>
@@ -385,17 +513,17 @@
                 const container = document.getElementById('screener-container');
                 container.innerHTML = '<div class="flex items-center gap-2 text-[11px] font-mono text-accent-brandLight animate-pulse py-4"><span class="w-2 h-2 rounded-none bg-accent-brand"></span>>_ Fetching quantitative datasets...</div>';
                 try {
-                    const res = await fetch(`/api/screener_data?ticker=${ticker}`);
+                    const res = await fetch(`/api/v1/screener_data?ticker=${ticker}`);
                     if (!res.ok) throw new Error('Screener fetch failed');
                     const data = await res.json();
                     if (!data.tables || Object.keys(data.tables).length === 0) {
-                        container.innerHTML = '<p class="text-[10px] font-mono text-txt-dim py-6 text-center uppercase">> ERR: No quantitative datasets located.</p>';
+                        container.innerHTML = '<p class="text-sm font-sans text-txt-muted py-10 text-center">No quantitative datasets located.</p>';
                         return;
                     }
                     let html = '<div class="space-y-6">';
                     for (const [title, rows] of Object.entries(data.tables)) {
-                        html += `<div><h3 class="text-[11px] font-bold font-mono text-txt-primary mb-2 tracking-widest uppercase border-l-2 border-accent-brand pl-2">${title}</h3>`;
-                        html += '<div class="overflow-x-auto rounded-sm border border-base-border"><table class="data-table">';
+                        html += `<div><h3 class="text-sm font-semibold font-sans text-txt-primary mb-3">${title}</h3>`;
+                        html += '<div class="overflow-x-auto rounded-md border border-base-border"><table class="data-table">';
                         if (rows.length > 0) {
                             html += '<thead><tr>';
                             for (const key of Object.keys(rows[0])) {
@@ -432,33 +560,41 @@
 
             // ── Stage mapping ──
             const stageLabels = {
-                extract_pdfs: 'Extracting_PDF_Data',
-                fetch_financials: 'Ingesting_Financials',
-                planning: 'Generating_Strategic_Plan',
-                parallel_execution: 'Executing_Agent_Mesh',
-                reflection: 'Running_Reflection_Loop',
-                conflict_check: 'Resolving_Discrepancies',
-                synthesis: 'Synthesizing_CIO_Report',
+                extract_pdfs: 'Data Extraction & OCR Pipeline',
+                fetch_financials: 'Financial Statement Ingestion',
+                planning: 'Strategic Analysis Formulation',
+                forensic_quant: 'Financial Forensics Quant',
+                forensic_investigator: 'Deep Forensic Audit',
+                narrative_decoder: 'Narrative & Bias Detection',
+                moat_architect: 'Economic Moat Architecture',
+                capital_allocator: 'Capital Allocation Review',
+                synthesis: 'Final Synthesis Generation',
             };
-            const allAgents = ['extract_pdfs', 'planning', 'fsa_quant', 'forensic_investigator', 'narrative_decoder', 'moat_architect', 'capital_allocator', 'synthesis'];
+            const allAgents = ['extract_pdfs', 'planning', 'forensic_quant', 'forensic_investigator', 'narrative_decoder', 'moat_architect', 'capital_allocator', 'synthesis'];
 
             function initAgentDots() {
                 agentStatusList.innerHTML = '';
-                allAgents.forEach(s => {
+                allAgents.forEach((s, idx) => {
                     const div = document.createElement('div');
-                    div.className = 'flex items-center gap-2 py-1';
+                    div.className = 'progress-step';
+                    div.id = `step-container-${s}`;
+                    
                     const iconBox = document.createElement('div');
                     iconBox.id = `icon-${s}`;
-                    iconBox.className = 'w-4 h-4 flex items-center justify-center';
-                    iconBox.innerHTML = '<span class="text-[10px] text-txt-dim font-bold">-</span>'; // Idle
+                    iconBox.className = 'step-icon idle';
+                    iconBox.textContent = idx + 1;
+                    
+                    const content = document.createElement('div');
+                    content.className = 'step-content';
                     
                     const textSpan = document.createElement('span');
                     textSpan.id = `text-${s}`;
-                    textSpan.className = 'text-[9px] font-mono text-txt-dim uppercase tracking-widest';
+                    textSpan.className = 'step-title';
                     textSpan.textContent = stageLabels[s] || s;
 
+                    content.appendChild(textSpan);
                     div.appendChild(iconBox);
-                    div.appendChild(textSpan);
+                    div.appendChild(content);
                     agentStatusList.appendChild(div);
                 });
             }
@@ -467,30 +603,40 @@
                 const active = meta.active_agents || [];
                 const completed = meta.completed_agents || [];
                 allAgents.forEach(s => {
+                    const stepContainer = document.getElementById(`step-container-${s}`);
                     const iconBox = document.getElementById(`icon-${s}`);
                     const text = document.getElementById(`text-${s}`);
-                    if (!iconBox || !text) return;
+                    if (!iconBox || !text || !stepContainer) return;
                     
                     if (completed.includes(s)) {
-                        iconBox.innerHTML = '<span class="text-[10px] text-txt-muted font-bold font-mono">✓</span>';
-                        text.className = 'text-[9px] font-mono text-txt-muted uppercase tracking-widest';
+                        stepContainer.classList.add('completed');
+                        iconBox.className = 'step-icon completed';
+                        iconBox.innerHTML = '<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>';
+                        text.className = 'step-title completed';
                     } else if (active.includes(s)) {
-                        iconBox.innerHTML = '<div class="w-3 h-3 border border-base-border border-t-accent-brand rounded-full animate-spin"></div>';
-                        text.className = 'text-[9px] font-mono text-accent-brand uppercase tracking-widest font-bold';
+                        stepContainer.classList.remove('completed');
+                        iconBox.className = 'step-icon active';
+                        iconBox.innerHTML = '<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>';
+                        text.className = 'step-title active';
                     } else {
-                        iconBox.innerHTML = '<span class="text-[10px] text-txt-dim font-bold">-</span>';
-                        text.className = 'text-[9px] font-mono text-txt-dim uppercase tracking-widest';
+                        stepContainer.classList.remove('completed');
+                        iconBox.className = 'step-icon idle';
+                        iconBox.textContent = allAgents.indexOf(s) + 1;
+                        text.className = 'step-title';
                     }
                 });
             }
 
             function completeAllAgentDots() {
                 allAgents.forEach(s => {
+                    const stepContainer = document.getElementById(`step-container-${s}`);
                     const iconBox = document.getElementById(`icon-${s}`);
                     const text = document.getElementById(`text-${s}`);
-                    if (!iconBox || !text) return;
-                    iconBox.innerHTML = '<span class="text-[10px] text-txt-secondary font-bold font-mono">✓</span>';
-                    text.className = 'text-[9px] font-mono text-txt-secondary uppercase tracking-widest';
+                    if (!iconBox || !text || !stepContainer) return;
+                    stepContainer.classList.add('completed');
+                    iconBox.className = 'step-icon completed';
+                    iconBox.innerHTML = '<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>';
+                    text.className = 'step-title completed';
                 });
             }
 
@@ -550,7 +696,7 @@
                 if (!fileInput.files.length) { displayError("NO_PDFS_INDEXED"); setLoadingState(false); return; }
                 for (const file of fileInput.files) formData.append('files', file);
                 try {
-                    const resp = await fetch('/generate_report', { method: 'POST', body: formData });
+                    const resp = await fetch('/api/v1/generate_report', { method: 'POST', body: formData });
                     if (!resp.ok) { let msg = `Status: ${resp.status}`; try { const e = await resp.json(); msg = e.error || msg; } catch {} throw new Error(msg); }
                     const { job_id } = await resp.json();
                     pollJob(job_id);
@@ -573,14 +719,26 @@
                 reportLoader.classList.remove('hidden');
                 errorMessage.classList.add('hidden');
                 exportPdfBtn.classList.add('hidden');
-                liveCounter.textContent = '[ 0 / 5 ] THREADS';
+                
+                // Clear out quant and forensic data
+                document.getElementById('quant-ticker').textContent = tickerInput.value.trim().toUpperCase() || 'TICKER';
+                ['health-badge', 'triage-panel', 'forensic-panel'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.classList.add('hidden');
+                });
+                
+                liveCounter.textContent = '0 / 5 Agents Active';
                 switchTab('synthesis');
                 fetchAndRenderScreener(tickerInput.value.trim());
 
                 // Reset Copilot
                 document.getElementById('chat-messages').innerHTML = `
                     <div class="chat-msg assistant">
-                        <div class="chat-bubble font-mono text-[10px] text-txt-dim uppercase">> SYSTEM_READY.<br>> INDEXED: ${tickerInput.value.trim().toUpperCase()}<br>> Awaiting query...</div>
+                        <div class="chat-bubble">
+                            <strong>Platform Initialized.</strong><br>
+                            Target set to: ${tickerInput.value.trim().toUpperCase()}<br>
+                            Awaiting queries...
+                        </div>
                     </div>`;
             }
 
@@ -591,7 +749,7 @@
                 async function check() {
                     attempts++;
                     try {
-                        const res = await fetch(`/job_status/${jobId}`);
+                        const res = await fetch(`/api/v1/job_status/${jobId}`);
                         if (!res.ok) throw new Error(`Status ${res.status}`);
                         const data = await res.json();
                         if (data.status === 'completed') {
@@ -629,7 +787,7 @@
 
             // ── Live Streaming Feed ──
             const agentLabels = {
-                fsa_quant: { name: 'FSA Quant', type: 'quant' },
+                forensic_quant: { name: 'Forensic Quant', type: 'quant' },
                 forensic_investigator: { name: 'Forensic Investigator', type: 'forensic' },
                 narrative_decoder: { name: 'Narrative Decoder', type: 'nlp' },
                 moat_architect: { name: 'Moat Architect', type: 'nlp' },
@@ -665,10 +823,10 @@
 
                         card.innerHTML = `
                             <div class="flex items-center justify-between px-3 py-1.5 bg-base-elevated border-b border-base-border">
-                                <span class="text-[10px] font-mono font-bold text-txt-primary uppercase tracking-widest">${info.name}_THREAD</span>
-                                <span class="text-[9px] font-mono text-txt-dim uppercase bg-base-bg px-1 border border-base-border">DONE_</span>
+                                <span class="text-xs font-sans font-semibold text-txt-primary">${info.name} Engine</span>
+                                <span class="text-[10px] font-sans text-txt-muted px-2 py-0.5 bg-base-bg rounded border border-base-border">Completed</span>
                             </div>
-                            <div class="px-4 py-3 text-[10px] text-txt-muted leading-relaxed max-h-[150px] overflow-y-auto report-prose font-mono">
+                            <div class="px-5 py-4 text-sm text-txt-secondary leading-relaxed max-h-[175px] overflow-y-auto report-prose border-l-2 border-accent-brand">
                                 ${markdownConverter.makeHtml(output)}
                             </div>
                         `;
@@ -677,88 +835,137 @@
                     const completed = meta.completed_agents || [];
                     const total = 5;
                     const agentsDone = completed.filter(a => a !== 'planning').length;
-                    liveCounter.textContent = `[ ${agentsDone} / ${total} ] THREADS`;
+                    liveCounter.textContent = `${agentsDone} / ${total} Agents Active`;
                 }
             }
 
             function populateForensicTab(agentOutputs) {
                 if (!agentOutputs) return;
                 const container = document.getElementById('forensic-tab-content');
-                container.innerHTML = '';
+                if (container) container.innerHTML = '';
+                
+                // Extract Narrative Decoder details for Evasion Score
+                const narrativeStr = agentOutputs['narrative_decoder'] || '';
+                const evasionLog = document.getElementById('mgmt-dodging-log');
+                const evasionScoreText = document.getElementById('evasion-score-text');
+                const evasionProgress = document.getElementById('evasion-progress');
+
+                if (narrativeStr && evasionLog) {
+                    // Quick heuristic parse if we don't have json
+                    let score = 50;
+                    if (narrativeStr.toLowerCase().includes('high evasion') || narrativeStr.toLowerCase().includes('obfuscation')) score = 85;
+                    else if (narrativeStr.toLowerCase().includes('transparent') || narrativeStr.toLowerCase().includes('clear')) score = 20;
+                    
+                    evasionScoreText.textContent = `${score}/100`;
+                    evasionProgress.style.width = `${score}%`;
+                    evasionProgress.className = `h-2 rounded-full transition-all duration-1000 ${score > 70 ? 'bg-semantic-red' : score > 40 ? 'bg-semantic-amber' : 'bg-semantic-green'}`;
+                    
+                    evasionLog.innerHTML = markdownConverter.makeHtml(narrativeStr);
+                }
+
+                // Render remaining agents into the bottom area of forensic tab
                 for (const [name, output] of Object.entries(agentOutputs)) {
+                    if (name === 'narrative_decoder') continue; // Already handled above
                     const info = agentLabels[name] || { name };
                     const div = document.createElement('div');
-                    div.className = 'ws-card overflow-hidden animate-fadeUp';
+                    div.className = 'ws-card overflow-hidden animate-fadeUp p-5';
                     div.innerHTML = `
-                        <div class="px-4 py-2 bg-base-elevated border-b border-base-border">
-                            <span class="text-[10px] font-mono font-bold text-txt-primary uppercase tracking-widest">${info.name}_KERNEL</span>
-                        </div>
-                        <div class="px-4 py-3 text-xs text-txt-secondary leading-relaxed max-h-[300px] overflow-y-auto report-prose">
+                        <h3 class="text-sm font-sans font-semibold text-txt-primary border-b border-base-border pb-3 mb-4">${info.name}</h3>
+                        <div class="text-sm text-txt-secondary leading-relaxed max-h-[300px] overflow-y-auto report-prose pr-2">
                             ${markdownConverter.makeHtml(output)}
                         </div>
                     `;
-                    container.appendChild(div);
+                    if (container) container.appendChild(div);
                 }
             }
 
             function renderTriagePanel(triage) {
-                const panel = document.getElementById('triage-panel');
-                const content = document.getElementById('triage-content');
-                if (!panel || panel.dataset.rendered) return;
-                let html = '';
+                const gauge = document.getElementById('health-gauge');
+                const badge = document.getElementById('health-badge');
+                const alerts = document.getElementById('forensic-alerts');
+                const status = document.getElementById('quant-triage-status');
+
+                if (!gauge || gauge.dataset.rendered) return;
+
                 if (triage.passed) {
-                    html += '<div class="mb-2"><span class="risk-badge risk-low uppercase text-[9px]">PASSED_CHECK</span></div>';
+                    gauge.textContent = 'Operational';
+                    badge.textContent = 'LOW RISK';
+                    badge.className = 'risk-badge risk-low ml-2';
+                    badge.classList.remove('hidden');
+                    status.textContent = 'Triage Cleared';
+                    status.className = 'text-sm font-semibold font-sans text-semantic-green';
+                    alerts.innerHTML = '<p class="text-sm text-semantic-green font-medium flex items-center gap-2"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> No critical accounting anomalies detected.</p>';
                 } else {
-                    html += '<div class="mb-2"><span class="risk-badge risk-high uppercase text-[9px]">FAILED_CHECK</span></div>';
-                    (triage.kill_reasons || []).forEach(r => { html += `<p class="text-semantic-red ml-2 mb-1 text-[10px] font-mono">>> ${r}</p>`; });
+                    gauge.textContent = 'Critical Risk';
+                    badge.textContent = 'INVESTIGATE';
+                    badge.className = 'risk-badge risk-high ml-2';
+                    badge.classList.remove('hidden');
+                    status.textContent = 'Kill Criteria Met';
+                    status.className = 'text-sm font-semibold font-sans text-semantic-red';
+                    
+                    let html = '';
+                    (triage.kill_reasons || []).forEach(r => { 
+                        html += `<div class="p-3 bg-semantic-red/10 border border-semantic-red/30 rounded-md mb-2 flex flex-col gap-1"><span class="text-xs font-bold text-semantic-red uppercase tracking-wider">FATAL</span><span class="text-sm text-txt-primary">${r}</span></div>`; 
+                    });
+                    if (triage.warnings?.length) {
+                        triage.warnings.forEach(w => { 
+                            html += `<div class="p-3 bg-semantic-amber/10 border border-semantic-amber/30 rounded-md mb-2 flex flex-col gap-1"><span class="text-xs font-bold text-semantic-amber uppercase tracking-wider">WARN</span><span class="text-sm text-txt-primary">${w}</span></div>`; 
+                        });
+                    }
+                    alerts.innerHTML = html;
                 }
-                if (triage.warnings?.length) {
-                    html += '<p class="text-semantic-amber font-mono mt-2 mb-1 text-[9px] uppercase tracking-widest">> WARNINGS_LOGGED:</p>';
-                    triage.warnings.forEach(w => { html += `<p class="text-semantic-amber/70 ml-2 mb-1 text-[10px] font-mono">- ${w}</p>`; });
-                }
-                content.innerHTML = html;
-                panel.classList.remove('hidden');
-                panel.dataset.rendered = 'true';
+                gauge.dataset.rendered = 'true';
             }
 
             function renderForensicPanel(scorecard) {
-                const panel = document.getElementById('forensic-panel');
-                const content = document.getElementById('forensic-content');
-                if (!panel || panel.dataset.rendered) return;
-                const p = scorecard.profitability || {};
-                const eq = scorecard.earnings_quality || {};
-                const lev = scorecard.leverage || {};
-                const dp = scorecard.dupont || {};
-                let html = '<div class="grid grid-cols-2 gap-1">';
-                if (p.roe_latest != null) html += `<div class="bg-base-elevated p-2 border border-base-border"><div class="text-[8px] uppercase font-mono text-txt-dim tracking-widest mb-1">ROE</div><div class="text-[11px] font-mono text-accent-brand">${(p.roe_latest * 100).toFixed(1)}%</div></div>`;
-                if (eq.quality_grade) {
-                    const col = eq.quality_grade === 'HIGH' ? 'text-semantic-green' : eq.quality_grade === 'LOW' ? 'text-semantic-red' : 'text-semantic-amber';
-                    html += `<div class="bg-base-elevated p-2 border border-base-border"><div class="text-[8px] uppercase font-mono text-txt-dim tracking-widest mb-1">Earnings Q.</div><div class="text-[11px] font-mono ${col}">${eq.quality_grade}</div></div>`;
+                if (!scorecard) return;
+                
+                const eq = scorecard.earnings_quality?.quality_grade || '--';
+                const ratingEl = document.getElementById('quant-rating');
+                if (ratingEl && !ratingEl.dataset.rendered) {
+                    ratingEl.textContent = eq === 'HIGH' ? 'A' : eq === 'MODERATE' ? 'B' : eq === 'LOW' ? 'C' : '--';
+                    ratingEl.className = 'text-3xl font-bold font-sans ' + (eq === 'HIGH' ? 'text-semantic-green' : eq === 'LOW' ? 'text-semantic-red' : 'text-semantic-amber');
+                    ratingEl.dataset.rendered = 'true';
                 }
-                if (lev.net_debt_ebitda != null) html += `<div class="bg-base-elevated p-2 border border-base-border"><div class="text-[8px] uppercase font-mono text-txt-dim tracking-widest mb-1">Net D/EBITDA</div><div class="text-[11px] font-mono text-txt-primary">${lev.net_debt_ebitda}x</div></div>`;
-                if (dp.roe_driver) html += `<div class="bg-base-elevated p-2 border border-base-border col-span-2"><div class="text-[8px] uppercase font-mono text-txt-dim tracking-widest mb-1">ROE Driver</div><div class="text-[10px] font-mono text-accent-brand">${dp.roe_driver}</div></div>`;
-                html += '</div>';
-                if (scorecard.flags?.length) {
-                    html += '<div class="mt-2 pt-2 border-t border-base-border">';
-                    html += '<p class="text-semantic-amber font-mono font-bold mb-1 text-[9px] uppercase tracking-widest">> DETECTED_FLAGS</p>';
-                    scorecard.flags.forEach(f => { html += `<p class="text-semantic-amber/70 mb-0.5 text-[10px] font-mono">- ${f}</p>`; });
-                    html += '</div>';
-                }
-                content.innerHTML = html;
-                panel.classList.remove('hidden');
-                panel.dataset.rendered = 'true';
-            }
 
-            function renderThesisPanel(thesis) {
-                // Not using thesis panel heavily anymore, but keeping for compatibility
-                hideAllPanels();
+                const p = scorecard.profitability || {};
+                const roicEl = document.getElementById('quant-roic');
+                if (roicEl && p.roe_latest) roicEl.textContent = (p.roe_latest * 100).toFixed(1) + '%';
+                
+                // Other metrics mapping if available in backend
+                const lev = scorecard.leverage || {};
+                const cccEl = document.getElementById('quant-ccc');
+                if (cccEl && lev.net_debt_ebitda) {
+                    cccEl.textContent = lev.net_debt_ebitda + 'x';
+                    document.getElementById('quant-ccc-sub').textContent = 'Net Debt/EBITDA';
+                }
+
+                const dp = scorecard.dupont || {};
+                const dpText = document.getElementById('quant-dupont-text');
+                if (dpText && dp.roe_driver) {
+                    dpText.innerHTML = `<span class="italic font-sans">Primary ROE Driver: </span><span class="font-bold text-txt-primary ml-2">${dp.roe_driver}</span>`;
+                }
+
+                if (scorecard.flags?.length) {
+                    // Append flags to forensic alerts if not passed triage
+                    const alerts = document.getElementById('forensic-alerts');
+                    if (alerts) {
+                        let html = alerts.innerHTML;
+                        if (html.includes('pending') || html.includes('No critical')) html = '';
+                        scorecard.flags.forEach(f => {
+                            html += `<div class="p-3 bg-semantic-amber/10 border border-semantic-amber/30 rounded-md mb-2 flex flex-col gap-1"><span class="text-xs font-bold text-semantic-amber uppercase tracking-wider">FLAG</span><span class="text-sm text-txt-primary">${f}</span></div>`;
+                        });
+                        alerts.innerHTML = html;
+                    }
+                }
             }
 
             function hideAllPanels() {
-                ['triage-panel', 'forensic-panel'].forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) { el.classList.add('hidden'); delete el.dataset.rendered; }
-                });
+                // Clear state markers
+                const gauge = document.getElementById('health-gauge');
+                if (gauge) delete gauge.dataset.rendered;
+                const ratingEl = document.getElementById('quant-rating');
+                if (ratingEl) delete ratingEl.dataset.rendered;
             }
 
             function setLoadingState(isLoading) {
@@ -886,7 +1093,7 @@
                 setRagLoadingState(true);
                 startAnalysis('rag');
                 try {
-                    const resp = await fetch('/analyze_rag', {
+                    const resp = await fetch('/api/v1/analyze_rag', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ ticker }),
@@ -923,13 +1130,23 @@
         // Initial Chat State
         chatMessages.innerHTML = `
             <div class="chat-msg assistant">
-                <div class="chat-bubble font-mono text-[10px] text-txt-dim uppercase">> SYSTEM_READY.<br>> Awaiting parameters...</div>
+                <div class="chat-bubble">
+                    <strong>Welcome to Novus FinLLM</strong><br>
+                    Please configure parameters via the command center to begin.
+                </div>
             </div>`;
 
         chatClear.addEventListener('click', () => {
             chatHistory = [];
-            const t = mainTickerInput.value.trim().toUpperCase() || 'AWAITING_TICKER';
-            chatMessages.innerHTML = `<div class="chat-msg assistant"><div class="chat-bubble font-mono text-[10px] text-txt-dim uppercase">> SYSTEM_READY.<br>> INDEXED: ${t}<br>> Awaiting query...</div></div>`;
+            const t = mainTickerInput.value.trim().toUpperCase() || 'Pending Target';
+            chatMessages.innerHTML = `
+                <div class="chat-msg assistant">
+                    <div class="chat-bubble">
+                        <strong>Chat Cleared.</strong><br>
+                        Current Target: ${t}<br>
+                        Awaiting new queries...
+                    </div>
+                </div>`;
         });
 
         async function sendMessage() {
@@ -948,7 +1165,7 @@
             chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: 'smooth' });
 
             try {
-                const resp = await fetch('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticker, question, history: chatHistory.slice(0, -1) }) });
+                const resp = await fetch('/api/v1/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticker, question, history: chatHistory.slice(0, -1) }) });
                 const ti = document.getElementById('typing-indicator'); if (ti) ti.remove();
                 if (!resp.ok) { const err = await resp.json().catch(() => ({})); throw new Error(err.error || `Status ${resp.status}`); }
                 const data = await resp.json();

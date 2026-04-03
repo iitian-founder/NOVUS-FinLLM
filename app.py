@@ -1,20 +1,84 @@
 import os
-from flask import Flask, request, jsonify, send_from_directory, send_file
+import functools
+from utils.logger import get_logger
+logger = get_logger(__name__)
+from flask import Flask, Blueprint, request, jsonify, send_from_directory, send_file
 from dotenv import load_dotenv
 from redis_config import get_queue, get_redis  # updated import path (same directory)
 from tasks import generate_financial_report, generate_financial_report_from_rag
 from rq.job import Job
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import io
 from pdf_export import generate_quant_pdf # updated import path (same directory)
+
+# --- Lifted Lazy Imports ---
+from flask import Response
+from flask import send_file
+from llm_clients import client, deepseek_model_name
+from rag_engine import get_collection_stats
+from rag_engine import ingest_documents
+from rag_engine import query as rag_query, get_collection_stats
+from screener_scraper import fetch_screener_tables
+from weasyprint import HTML
+import asyncio
+import datetime
+import glob
+import io
+import json as _json
+import queue
+import threading
+import time as _time
+
 
 # Load environment variables
 load_dotenv()
 
 # Initialize Flask app
 app = Flask(__name__, static_folder='static')
-CORS(app)
-@app.route('/generate_report', methods=['POST'])
+# --- Blueprint Configuration ---
+api_v1 = Blueprint('api_v1', __name__, url_prefix='/api/v1')
+
+
+# --- Security: CORS restricted to allowed origins ---
+ALLOWED_ORIGINS = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:3000,http://localhost:5000,http://127.0.0.1:3000,http://127.0.0.1:5000"
+).split(",")
+CORS(app, origins=ALLOWED_ORIGINS)
+
+# --- Security: Rate Limiting ---
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per hour"],
+    storage_uri="memory://",
+)
+
+# --- Security: API Key Middleware ---
+API_KEY = os.getenv("NOVUS_API_KEY")  # Set in .env; if unset, auth is disabled (dev mode)
+
+def require_api_key(f):
+    """Decorator to enforce X-API-Key header on protected endpoints."""
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        if API_KEY:  # Only enforce if NOVUS_API_KEY is set
+            provided = request.headers.get("X-API-Key", "")
+            if provided != API_KEY:
+                return jsonify({"error": "Unauthorized — invalid or missing X-API-Key header"}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+# --- Security: Path Traversal Protection ---
+ALLOWED_INGEST_PREFIXES = [
+    p.strip() for p in
+    os.getenv("ALLOWED_INGEST_PATHS", os.path.expanduser("~/Desktop")).split(",")
+    if p.strip()
+]
+@api_v1.route('/generate_report', methods=['POST'])
+@require_api_key
+@limiter.limit("10 per hour")
 def generate_report():
     """Start background task for report generation"""
     if 'files' not in request.files or 'ticker' not in request.form:
@@ -51,7 +115,9 @@ def generate_report():
     })
 
 
-@app.route('/analyze_rag', methods=['POST'])
+@api_v1.route('/analyze_rag', methods=['POST'])
+@require_api_key
+@limiter.limit("10 per hour")
 def analyze_rag():
     """
     RAG-Only Analysis: Just provide a ticker.
@@ -83,7 +149,8 @@ def analyze_rag():
         "message": f"RAG-only analysis for {ticker} started. Use /job_status/{job.id} to check progress."
     })
 
-@app.route('/job_status/<job_id>')
+@api_v1.route('/job_status/<job_id>')
+@limiter.exempt
 def job_status(job_id):
     """Check the status of a background job"""
     try:
@@ -125,7 +192,7 @@ def health():
     except Exception as e:
         return {"status": "error", "error": str(e)}, 500
 
-@app.route('/api/screener_data', methods=['GET'])
+@api_v1.route('/screener_data', methods=['GET'])
 def get_screener_data():
     """Fetch synchronous numerical table data from Screener.in"""
     ticker = request.args.get('ticker')
@@ -133,7 +200,6 @@ def get_screener_data():
         return jsonify({"error": "Missing ticker parameter"}), 400
         
     try:
-        from screener_scraper import fetch_screener_tables
         data = fetch_screener_tables(ticker)
         if "error" in data:
             return jsonify(data), 500
@@ -143,7 +209,9 @@ def get_screener_data():
 
 # ── RAG Chat Endpoint ────────────────────────────────────────────────────────
 
-@app.route('/chat', methods=['POST'])
+@api_v1.route('/chat', methods=['POST'])
+@require_api_key
+@limiter.limit("30 per minute")
 def chat():
     """
     RAG-powered chat: Ask questions about a company using stored documents.
@@ -161,8 +229,6 @@ def chat():
         return jsonify({"error": "Question cannot be empty"}), 400
 
     try:
-        from rag_engine import query as rag_query, get_collection_stats
-        from logic import client, deepseek_model_name
 
         # Check if we have data for this ticker
         stats = get_collection_stats(ticker)
@@ -252,13 +318,13 @@ Rules:
 # ── RAG Local Folder Ingestion ────────────────────────────────────────────────
 
 @app.route('/ingest_local', methods=['POST'])
+@require_api_key
+@limiter.limit("10 per minute")
 def ingest_local():
     """
     Ingest all PDFs from a local folder into the RAG vector store.
     Body: { "ticker": "RELIANCE", "folder_path": "/Users/.../Fin k10 copy" }
     """
-    from rag_engine import ingest_documents
-    import glob
 
     data = request.get_json()
     if not data or 'ticker' not in data:
@@ -266,6 +332,11 @@ def ingest_local():
 
     ticker = data['ticker']
     folder_path = data.get('folder_path', os.path.expanduser('~/Desktop/Fin k10 copy'))
+
+    # --- Security: Path traversal protection ---
+    ALLOWED_INGEST_ROOTS = [os.path.expanduser("~/Desktop"), "/data/uploads"]
+    if not any(os.path.commonpath([folder_path, root]) == root for root in ALLOWED_INGEST_ROOTS):
+        return jsonify({"error": "Folder path not permitted"}), 403
 
     if not os.path.isdir(folder_path):
         return jsonify({"error": f"Folder not found: {folder_path}"}), 404
@@ -285,7 +356,7 @@ def ingest_local():
                 filename = os.path.basename(pdf_path)
                 files_data.append((filename, f.read()))
         except Exception as e:
-            print(f"[Ingest] Skipped {pdf_path}: {e}")
+            logger.info(f"[Ingest] Skipped {pdf_path}: {e}")
 
     if not files_data:
         return jsonify({"error": "Could not read any PDF files"}), 500
@@ -308,7 +379,6 @@ def ingest_local():
 @app.route('/rag_stats/<ticker>')
 def rag_stats(ticker):
     """Get RAG store stats for a ticker."""
-    from rag_engine import get_collection_stats
     try:
         stats = get_collection_stats(ticker.upper())
         return jsonify({"ticker": ticker.upper(), **stats})
@@ -319,7 +389,6 @@ def rag_stats(ticker):
 @app.route('/list_local_pdfs', methods=['POST'])
 def list_local_pdfs():
     """List PDFs in a local folder (preview before ingesting)."""
-    import glob
 
     data = request.get_json()
     folder_path = data.get('folder_path', os.path.expanduser('~/Desktop/Fin k10 copy'))
@@ -437,12 +506,9 @@ def export_pdf():
     """.replace("__TICKER__", ticker).replace("__CONTENT_HTML__", content_html)
     
     try:
-        from weasyprint import HTML
-        import io
         
         pdf_bytes = HTML(string=html_template).write_pdf()
         
-        from flask import send_file
         return send_file(
             io.BytesIO(pdf_bytes),
             mimetype='application/pdf',
@@ -452,6 +518,10 @@ def export_pdf():
     except Exception as e:
         return jsonify({"error": f"PDF generation failed: {str(e)}"}), 500
 
-if __name__ == '__main__':
 
-    app.run(port=8080, debug=True, host='0.0.0.0')
+
+
+app.register_blueprint(api_v1)
+
+if __name__ == '__main__':
+    app.run(port=5001, debug=True, host='0.0.0.0')
