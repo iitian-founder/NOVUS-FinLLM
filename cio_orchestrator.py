@@ -17,6 +17,11 @@ import asyncio
 import re
 from typing import Optional, Callable
 from dataclasses import dataclass, field
+from concurrent.futures import ThreadPoolExecutor
+
+# Dedicated ThreadPool to ensure 10 agents can run simultaneously 
+# without queuing behind other default executor tasks.
+_agent_executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix="AgentPool")
 
 from core.llm_client import LLMClient, get_llm_client
 from core.agent_base_v3 import AuditTrail, AgentV3
@@ -235,7 +240,7 @@ async def _run_agents_parallel(
         try:
             if name == "forensic_quant":
                 trail = await loop.run_in_executor(
-                    None,
+                    _agent_executor,
                     lambda: agent.execute(
                         ticker=state.ticker,
                         financial_tables=state.financial_tables,
@@ -247,7 +252,7 @@ async def _run_agents_parallel(
             else:
                 trail = await asyncio.wait_for(
                     loop.run_in_executor(
-                        None,
+                        _agent_executor,
                         lambda: agent.execute(
                             ticker=state.ticker,
                             document_text=state.document_text,
