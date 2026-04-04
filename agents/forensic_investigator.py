@@ -1,6 +1,6 @@
 from core.agent_base_v3 import AgentV3
 from core.tools import Tool
-from .agent_utils import _cross_ref
+from .agent_utils import _cross_ref, _safe_handler
 
 class ForensicInvestigatorV3(AgentV3):
     @property
@@ -72,6 +72,6 @@ class ForensicInvestigatorV3(AgentV3):
                     },
                     "required": ["item_a", "item_b", "table"],
                 },
-                handler=lambda item_a, item_b, table: _cross_ref(tables, item_a, item_b, table),
+                handler=_safe_handler(lambda item_a, item_b, table: _cross_ref(tables, item_a, item_b, table)),
             ),
         ]

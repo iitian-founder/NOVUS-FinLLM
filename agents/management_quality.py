@@ -1,6 +1,6 @@
 from core.agent_base_v3 import AgentV3
 from core.tools import Tool
-from .agent_utils import _search_governance
+from .agent_utils import _search_governance, _safe_handler
 
 class ManagementQualityV3(AgentV3):
     @property
@@ -69,6 +69,6 @@ class ManagementQualityV3(AgentV3):
                     },
                     "required": ["topic"],
                 },
-                handler=lambda topic: _search_governance(doc, topic),
+                handler=_safe_handler(lambda topic: _search_governance(doc, topic)),
             ),
         ]

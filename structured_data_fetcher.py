@@ -25,6 +25,105 @@ QUANT_AGENTS = {"fsa_quant", "forensic_quant", "capital_allocator"}
 NLP_AGENTS = {"narrative_decoder", "moat_architect", "forensic_investigator"}
 
 
+
+# ── Boundary Normalization ───────────────────────────────────────────────
+# Parse, Don't Validate: all Screener.in quirks are stripped HERE.
+# Internal code only ever sees: profit_loss, balance_sheet, cash_flow, etc.
+# with year-keyed dicts like {"Mar 2024": {"Revenue": 15747.0, ...}}.
+
+import re
+
+# Screener UI key → internal contract key
+_KEY_MAP = {
+    "Profit & Loss": "profit_loss",
+    "Balance Sheet": "balance_sheet",
+    "Cash Flows": "cash_flow",
+    "Quarterly Results": "quarterly_results",
+    "Ratios": "ratios",
+}
+
+# Strict fiscal year column filter — rejects TTM, junk, merged cells
+_FISCAL_YEAR_RE = re.compile(r"^(Mar|Jun|Sep|Dec)\s\d{4}$")
+
+
+def _to_float(value) -> Optional[float]:
+    """Best-effort conversion of scraped cell values into floats."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip()
+    if not text or text.lower() in ("nan", "-", ""):
+        return None
+    cleaned = text.replace(",", "").replace("%", "").replace("x", "").replace("₹", "").strip()
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def _transpose_table(rows: list) -> dict:
+    """Convert Screener's list-of-dicts into year-keyed dict.
+
+    Input:  [{"Line Item": "Revenue", "Mar 2023": "14,000", "TTM": "15,200"}, ...]
+    Output: {"Mar 2023": {"Revenue": 14000.0}, ...}
+
+    TTM and non-fiscal-year columns are REJECTED by _FISCAL_YEAR_RE.
+    """
+    if not isinstance(rows, list) or not rows:
+        return {}
+
+    out: Dict[str, Dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+
+        # Identify the label column (usually 'Line Item' or 'Unnamed: 0')
+        label = ""
+        label_key = ""
+        for k, v in row.items():
+            k_str = str(k)
+            if k_str in ("Line Item", "Unnamed: 0") or k_str.startswith("Unnamed"):
+                label = str(v).strip()
+                label_key = k_str
+                break
+        if not label and row:
+            first_key = next(iter(row))
+            label = str(row[first_key]).strip()
+            label_key = str(first_key)
+
+        if not label:
+            continue
+
+        # Allocate values to their respective fiscal years
+        for col_name, value in row.items():
+            col_str = str(col_name).strip()
+            if col_str == label_key:
+                continue
+            # Only accept actual fiscal year columns (reject TTM, junk, etc.)
+            if not _FISCAL_YEAR_RE.match(col_str):
+                continue
+            if col_str not in out:
+                out[col_str] = {}
+            out[col_str][label] = _to_float(value)
+
+    return out
+
+
+def _normalize_tables(raw_tables: dict) -> dict:
+    """Normalize Screener's raw output into our internal data contract.
+
+    1. Renames keys: "Profit & Loss" → "profit_loss"
+    2. Transposes rows: list-of-dicts → year-keyed dicts
+    3. Filters columns: TTM and non-fiscal-year columns are rejected
+    """
+    normalized = {}
+    for screener_key, rows in raw_tables.items():
+        internal_key = _KEY_MAP.get(screener_key, screener_key.lower().replace(" ", "_").replace("&", "and"))
+        normalized[internal_key] = _transpose_table(rows)
+    return normalized
+
+
 class StructuredDataFetcher:
     """
     Institutional data feed abstraction layer.
@@ -32,6 +131,10 @@ class StructuredDataFetcher:
     Currently backed by Screener.in (live scraping).
     Designed for future drop-in replacement with XBRL feeds,
     FactSet API, Capitaline, or Bloomberg B-PIPE.
+    
+    All data normalization (key remapping, structure transposition,
+    TTM filtering) happens HERE at the boundary. Downstream agents
+    and tools only ever see pristine, year-keyed dicts.
     """
 
     def __init__(self):
@@ -40,7 +143,7 @@ class StructuredDataFetcher:
     def fetch(self, ticker: str) -> Dict[str, Any]:
         """
         Fetch structured financial data for a given ticker.
-        Returns a dictionary with P&L, Balance Sheet, Cash Flow, and Ratios.
+        Returns normalized tables with canonical keys + auto-detected sector.
         Results are cached per-session to avoid redundant HTTP requests.
         """
         ticker = ticker.upper().strip()
@@ -53,21 +156,25 @@ class StructuredDataFetcher:
 
         try:
             raw = fetch_screener_tables(ticker)
-            tables = raw.get("tables", {})
+            raw_tables = raw.get("tables", {})
 
-            if not tables:
+            if not raw_tables:
                 logger.warning(f"[StructuredDataFetcher] No tables found for {ticker}")
-                return {"ticker": ticker, "tables": {}, "error": "No structured data available"}
+                return {"ticker": ticker, "sector": raw.get("sector", "General"), "tables": {}, "error": "No structured data available"}
+
+            # ── Normalize at the boundary ──
+            tables = _normalize_tables(raw_tables)
 
             structured = {
                 "ticker": ticker,
                 "source": raw.get("source", "screener.in"),
+                "sector": raw.get("sector", "General"),
                 "tables": tables,
             }
 
             self._cache[ticker] = structured
             logger.info(
-                f"[StructuredDataFetcher] ✅ {ticker}: "
+                f"[StructuredDataFetcher] ✅ {ticker} ({structured['sector']}): "
                 f"{len(tables)} tables, "
                 f"sections={list(tables.keys())}"
             )
@@ -75,7 +182,8 @@ class StructuredDataFetcher:
 
         except Exception as e:
             logger.error(f"[StructuredDataFetcher] Failed for {ticker}: {e}")
-            return {"ticker": ticker, "tables": {}, "error": str(e)}
+            return {"ticker": ticker, "sector": "General", "tables": {}, "error": str(e)}
+
 
     @staticmethod
     def _coerce_numeric(value: Any) -> Optional[float]:

@@ -292,9 +292,13 @@ def compose_prompt(
         # Agent filter
         if module.agent_filter and agent_name not in module.agent_filter:
             continue
-        # Sector filter
-        if module.sector_filter and sector not in module.sector_filter:
-            continue
+        # Sector filter — case-insensitive substring match so raw Screener strings
+        # like "Fast Moving Consumer Goods" match filters like ["FMCG", "Consumer"]
+        if module.sector_filter:
+            sector_lower = sector.lower()
+            if not any(f.lower() in sector_lower or sector_lower in f.lower()
+                       for f in module.sector_filter):
+                continue
         # Signal filter
         if module.signal_key and not extraction_signals.get(module.signal_key, False):
             continue

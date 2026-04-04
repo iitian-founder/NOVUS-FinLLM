@@ -171,12 +171,14 @@ def generate_financial_report_from_rag(ticker):
 
         user_query = f"Analyze {ticker} focusing on forensics, competitive moat, narrative shifts, and capital allocation."
         
-        logger.info(f"[Pipeline] Starting V3 Orchestrator for {ticker}")
+        # Auto-detected sector from Screener.in (e.g., "Fast Moving Consumer Goods")
+        detected_sector = structured_data.get("sector", "General")
+        logger.info(f"[Pipeline] Starting V3 Orchestrator for {ticker} | Sector: {detected_sector}")
         state = _runner.run(analyze(
             ticker=ticker,
             document_text=combined_text,
             financial_tables=financial_tables,
-            sector="General / Diversified", # Defaults for V3 agent instruction framing
+            sector=detected_sector,
             query=user_query,
             progress_callback=progress_cb
         ))

@@ -1,6 +1,6 @@
 from core.agent_base_v3 import AgentV3
 from core.tools import Tool
-from .agent_utils import _search_guidance, _detect_hedging
+from .agent_utils import _search_guidance, _detect_hedging, _safe_handler
 
 class NarrativeDecoderV3(AgentV3):
     @property
@@ -73,7 +73,7 @@ class NarrativeDecoderV3(AgentV3):
                     },
                     "required": ["topic"],
                 },
-                handler=lambda topic: _search_guidance(doc, topic),
+                handler=_safe_handler(lambda topic: _search_guidance(doc, topic)),
             ),
             Tool(
                 name="detect_hedging_language",
@@ -89,6 +89,6 @@ class NarrativeDecoderV3(AgentV3):
                     },
                     "required": ["section"],
                 },
-                handler=lambda section: _detect_hedging(doc, section),
+                handler=_safe_handler(lambda section: _detect_hedging(doc, section)),
             ),
         ]

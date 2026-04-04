@@ -145,8 +145,12 @@ async def run_pipeline(
     llm: LLMClient = None,
 ) -> OrchestratorState:
     
-    if llm is None:
-        llm = get_llm_client()
+    # ── Dual LLM Routing ──
+    # V3: Fast, structured tool-calling — for all ReAct investigation agents
+    # R1: Deep chain-of-thought reasoning — exclusively for PM Synthesis
+    v3_llm = get_llm_client(use_r1=False)
+    r1_llm = get_llm_client(use_r1=True)
+    print(f"> [CIO] Model routing: ReAct agents → V3 | PM Synthesis → R1")
 
     state = OrchestratorState(
         ticker=ticker,
@@ -165,20 +169,20 @@ async def run_pipeline(
     if progress_callback:
         progress_callback("lead_analyst_planning", [], [])
         
-    state.agent_frameworks = await _generate_dynamic_frameworks(state, llm)
+    state.agent_frameworks = await _generate_dynamic_frameworks(state, v3_llm)
     print(f"> [CIO] Lead Analyst generated frameworks for {len(state.agent_frameworks)} agents.")
 
     phase1 = EXECUTION_PHASES[0]
     if progress_callback:
         progress_callback("investigation", phase1["agents"], [])
 
-    await _run_agents_parallel(state, phase1["agents"], llm, progress_callback)
+    await _run_agents_parallel(state, phase1["agents"], v3_llm, progress_callback)
 
     reflection_agents = _determine_reflection_needs(state)
     if reflection_agents:
         if progress_callback:
             progress_callback("reflection", reflection_agents, list(state.agent_trails.keys()))
-        await _run_agents_parallel(state, reflection_agents, llm, progress_callback)
+        await _run_agents_parallel(state, reflection_agents, v3_llm, progress_callback)
 
     if progress_callback:
         progress_callback("conflict_check", [], list(state.agent_trails.keys()))
@@ -204,7 +208,7 @@ async def run_pipeline(
         financial_tables=financial_tables,
         sector=sector,
         extraction_signals=pm_signals,
-        llm=llm,
+        llm=r1_llm,  # R1 for deep reasoning synthesis
         dynamic_mandate=state.agent_frameworks.get("pm_synthesis", "")
     )
     

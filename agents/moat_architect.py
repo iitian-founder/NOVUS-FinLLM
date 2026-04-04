@@ -1,6 +1,6 @@
 from core.agent_base_v3 import AgentV3
 from core.tools import Tool
-from .agent_utils import _search_competitive
+from .agent_utils import _search_competitive, _safe_handler
 
 class MoatArchitectV3(AgentV3):
     @property
@@ -63,6 +63,6 @@ class MoatArchitectV3(AgentV3):
                     },
                     "required": ["topic"],
                 },
-                handler=lambda topic: _search_competitive(doc, topic),
+                handler=_safe_handler(lambda topic: _search_competitive(doc, topic)),
             ),
         ]

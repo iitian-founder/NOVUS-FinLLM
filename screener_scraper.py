@@ -25,6 +25,32 @@ def clean_dataframe(df: pd.DataFrame) -> list:
     return records
 
 
+def _extract_sector(soup: BeautifulSoup) -> str:
+    """Extract the raw sector string from Screener's peer comparison breadcrumbs.
+    
+    The peers section contains links like:
+        /market/IN04/             → "Fast Moving Consumer Goods"
+        /market/IN04/IN0401/...   → "Diversified FMCG"
+    
+    We return the first (broadest) classification as a raw string.
+    No dictionary mapping — let the LLM interpret it.
+    """
+    try:
+        peers = soup.find("section", id="peers")
+        if peers:
+            links = peers.find_all("a", href=True)
+            for a in links:
+                href = a.get("href", "")
+                # Peer section links to /market/INxx/ for sector classification
+                if href.startswith("/market/IN"):
+                    text = a.get_text(strip=True)
+                    if text:
+                        return text
+    except Exception as e:
+        logger.warning(f"Could not extract sector: {e}")
+    return "General"
+
+
 def fetch_screener_tables(ticker: str) -> Dict[str, Any]:
     """
     Fetches the main financial tables from screener.in for a given ticker.
@@ -53,6 +79,9 @@ def fetch_screener_tables(ticker: str) -> Dict[str, Any]:
         return {"error": str(e), "tables": {}}
 
     soup = BeautifulSoup(response.content, "html.parser")
+    
+    # Extract sector classification from the peer comparison breadcrumbs
+    sector = _extract_sector(soup)
     
     targets = {
         "Quarterly Results": "quarters",
@@ -89,12 +118,14 @@ def fetch_screener_tables(ticker: str) -> Dict[str, Any]:
     return {
         "ticker": ticker,
         "source": url,
+        "sector": sector,
         "tables": results
     }
 
 if __name__ == "__main__":
     # Test execution
     data = fetch_screener_tables("HINDUNILVR")
+    print(f"Sector: {data.get('sector')}")
     if data.get("tables"):
         for t_name, t_data in data["tables"].items():
             print(f"--- {t_name} ---")

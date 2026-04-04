@@ -1,5 +1,28 @@
 import re
 
+
+def _safe_handler(fn):
+    """Wrap a tool handler so failures give the LLM an exit ramp.
+    
+    Without this, a ReAct agent will retry failed tool calls in an infinite
+    loop until MAX_ITERATIONS, wasting compute and delaying the report.
+    The explicit instruction_to_agent directive tells V3 to move on.
+    """
+    def wrapper(**kwargs):
+        try:
+            return fn(**kwargs)
+        except Exception as e:
+            return {
+                "error": str(e),
+                "failed_args": kwargs,
+                "instruction_to_agent": (
+                    "This tool call FAILED. DO NOT retry with the same arguments. "
+                    "Record this as a data gap in your findings and continue "
+                    "investigating other areas."
+                ),
+            }
+    return wrapper
+
 def _fget(data: dict, *keys, default=None):
     for k in keys:
         val = data.get(k)

@@ -8,40 +8,11 @@ class ForensicQuantV3:
     def execute(self, ticker: str, financial_tables: dict, **kwargs) -> AuditTrail:
         start = time.time()
         
-        # Transform flat list of dicts from screener into hierarchical dict keyed by year
-        def _transpose(tbl):
-            if not isinstance(tbl, list): return tbl
-            if not tbl: return {}
-            out = {}
-            for row in tbl:
-                if not isinstance(row, dict): continue
-                # Identify the label (usually the first unspoken column like 'Line Item')
-                label = ""
-                for k, v in row.items():
-                    if k in ("Line Item", "Unnamed: 0") or str(k).startswith("Unnamed"):
-                        label = str(v).strip()
-                        break
-                if not label and row: label = str(next(iter(row.values()), "")).strip()
-                
-                # Allocate values to their respective years
-                for k, v in row.items():
-                    if k in ("Line Item", "Unnamed: 0") or str(k).startswith("Unnamed"): 
-                        continue
-                    yr = str(k).strip()
-                    if yr not in out: out[yr] = {}
-                    
-                    # Ensure numeric parsing
-                    val = str(v).replace(",", "").replace("%", "").strip()
-                    try:
-                        out[yr][label] = float(val)
-                    except ValueError:
-                        out[yr][label] = None
-            return out
-
-        # Support both legacy internal keys and direct Screener.in keys, wrapped in structure transpose
-        pl = _transpose(financial_tables.get("Profit & Loss", financial_tables.get("profit_loss", {})))
-        bs = _transpose(financial_tables.get("Balance Sheet", financial_tables.get("balance_sheet", {})))
-        cf = _transpose(financial_tables.get("Cash Flows", financial_tables.get("cash_flow", {})))
+        # Data is pre-normalized at the boundary (structured_data_fetcher.py)
+        # Internal keys: profit_loss, balance_sheet, cash_flow
+        pl = financial_tables.get("profit_loss", {})
+        bs = financial_tables.get("balance_sheet", {})
+        cf = financial_tables.get("cash_flow", {})
         
         findings = {}
         data_gaps = []
@@ -57,102 +28,123 @@ class ForensicQuantV3:
         latest_bs = bs.get(latest, {})
         latest_cf = cf.get(latest, {})
 
-        # ── Profitability ──
-        revenue = _fget(latest_pl, "Revenue", "Sales+", "Net Sales", "Revenue from Operations")
-        ebit = _fget(latest_pl, "EBIT", "Operating Profit")
-        pat = _fget(latest_pl, "Net Profit", "PAT", "Profit after tax")
-        total_assets = _fget(latest_bs, "Total Assets")
-        total_equity = _fget(latest_bs, "Shareholders Funds", "Total Equity", "Equity")
-        total_debt = _fget(latest_bs, "Borrowings", "Total Debt", "Long Term Borrowings", default=0)
-        cash = _fget(latest_bs, "Cash Equivalents", "Cash and Bank", "Cash", default=0)
+        # ── Profitability (DuPont) ──
+        try:
+            revenue = _fget(latest_pl, "Revenue", "Sales+", "Sales +", "Net Sales", "Revenue from Operations")
+            ebit = _fget(latest_pl, "EBIT", "Operating Profit")
+            pat = _fget(latest_pl, "Net Profit", "PAT", "Profit after tax")
+            total_assets = _fget(latest_bs, "Total Assets")
+            total_equity = _fget(latest_bs, "Shareholders Funds", "Total Equity", "Equity")
+            total_debt = _fget(latest_bs, "Borrowings", "Total Debt", "Long Term Borrowings", default=0)
+            cash = _fget(latest_bs, "Cash Equivalents", "Cash and Bank", "Cash", default=0)
 
-        if revenue and pat and total_assets and total_equity:
-            margin = round(pat / revenue, 4)
-            turnover = round(revenue / total_assets, 4)
-            multiplier = round(total_assets / total_equity, 4)
-            roe = round(margin * turnover * multiplier, 4)
-            findings["dupont"] = {
-                "roe": roe, "net_margin": margin,
-                "asset_turnover": turnover, "equity_multiplier": multiplier,
-                "primary_driver": "margin" if margin > 0.15 else ("leverage" if multiplier > 2.5 else "turnover"),
-            }
-        else:
-            data_gaps.append("Insufficient data for DuPont decomposition")
+            if revenue and pat and total_assets and total_equity:
+                margin = round(pat / revenue, 4)
+                turnover = round(revenue / total_assets, 4)
+                multiplier = round(total_assets / total_equity, 4)
+                roe = round(margin * turnover * multiplier, 4)
+                findings["dupont"] = {
+                    "roe": roe, "net_margin": margin,
+                    "asset_turnover": turnover, "equity_multiplier": multiplier,
+                    "primary_driver": "margin" if margin > 0.15 else ("leverage" if multiplier > 2.5 else "turnover"),
+                }
+            else:
+                data_gaps.append("Insufficient data for DuPont decomposition")
+        except Exception as e:
+            data_gaps.append(f"DuPont computation failed: {e}")
 
         # ── ROIC ──
-        if ebit and total_equity is not None and total_debt is not None:
-            nopat = ebit * 0.75
-            invested_capital = total_equity + total_debt - (cash or 0)
-            if invested_capital > 0:
-                roic = round(nopat / invested_capital, 4)
-                findings["roic_latest"] = roic
-                wacc = kwargs.get("wacc", 0.12)
-                if roic < wacc:
-                    flags.append(f"ROIC ({roic:.1%}) < WACC ({wacc:.1%}) — value destruction")
-            else:
-                data_gaps.append("Invested capital ≤ 0 — cannot compute ROIC")
+        try:
+            if ebit and total_equity is not None and total_debt is not None:
+                nopat = ebit * 0.75
+                invested_capital = total_equity + total_debt - (cash or 0)
+                if invested_capital > 0:
+                    roic = round(nopat / invested_capital, 4)
+                    findings["roic_latest"] = roic
+                    wacc = kwargs.get("wacc", 0.12)
+                    if roic < wacc:
+                        flags.append(f"ROIC ({roic:.1%}) < WACC ({wacc:.1%}) — value destruction")
+                else:
+                    data_gaps.append("Invested capital ≤ 0 — cannot compute ROIC")
+        except Exception as e:
+            data_gaps.append(f"ROIC computation failed: {e}")
 
         # ── Earnings Quality ──
-        ocf = _fget(latest_cf, "Operating Cash Flow", "Cash from Operating", "CFO")
-        depreciation = _fget(latest_pl, "Depreciation", "Depreciation and Amortisation", default=0)
-        capex = _fget(latest_cf, "Capital Expenditure", "Purchase of Fixed Assets", "Capex")
+        try:
+            ocf = _fget(latest_cf, "Operating Cash Flow", "Cash from Operating", "CFO", "Cash from Operating Activity +", "Cash from Operating Activity")
+            depreciation = _fget(latest_pl, "Depreciation", "Depreciation and Amortisation", default=0)
+            capex = _fget(latest_cf, "Capital Expenditure", "Purchase of Fixed Assets", "Capex")
 
-        ebitda = (ebit or 0) + depreciation
-        if ocf and ebitda and ebitda > 0:
-            findings["ocf_ebitda_ratio"] = round(ocf / ebitda, 4)
+            ebitda = (ebit or 0) + (depreciation or 0)
+            if ocf and ebitda and ebitda > 0:
+                findings["ocf_ebitda_ratio"] = round(ocf / ebitda, 4)
 
-        if ocf and capex and pat:
-            fcf = ocf - abs(capex)
-            if pat != 0:
-                findings["fcf_pat_ratio"] = round(fcf / pat, 4)
+            if ocf and capex and pat:
+                fcf = ocf - abs(capex)
+                if pat != 0:
+                    findings["fcf_pat_ratio"] = round(fcf / pat, 4)
+        except Exception as e:
+            data_gaps.append(f"Earnings quality computation failed: {e}")
 
         # ── Working Capital (CCC) ──
-        inventory = _fget(latest_bs, "Inventories", "Inventory", default=0)
-        receivables = _fget(latest_bs, "Trade Receivables", "Debtors", "Receivables", default=0)
-        payables = _fget(latest_bs, "Trade Payables", "Sundry Creditors", "Creditors", default=0)
-        cogs = _fget(latest_pl, "Cost of Materials", "Cost of Goods Sold", "COGS",
-                      "Material Cost", "Raw Material Cost", default=0)
+        try:
+            inventory = _fget(latest_bs, "Inventories", "Inventory", default=0)
+            receivables = _fget(latest_bs, "Trade Receivables", "Debtors", "Receivables", default=0)
+            payables = _fget(latest_bs, "Trade Payables", "Sundry Creditors", "Creditors", default=0)
+            cogs = _fget(latest_pl, "Cost of Materials", "Cost of Goods Sold", "COGS",
+                          "Material Cost", "Raw Material Cost", default=0)
 
-        if cogs > 0 and revenue and revenue > 0:
-            dio = round((inventory / cogs) * 365, 1) if inventory else None
-            dso = round((receivables / revenue) * 365, 1) if receivables is not None else None
-            dpo = round((payables / cogs) * 365, 1) if payables else None
-            ccc = None
-            if dio is not None and dso is not None and dpo is not None:
-                ccc = round(dio + dso - dpo, 1)
-            findings["working_capital"] = {"dio": dio, "dso": dso, "dpo": dpo, "ccc_days": ccc}
+            if cogs and cogs > 0 and revenue and revenue > 0:
+                dio = round((inventory / cogs) * 365, 1) if inventory else None
+                dso = round((receivables / revenue) * 365, 1) if receivables is not None else None
+                dpo = round((payables / cogs) * 365, 1) if payables else None
+                ccc = None
+                if dio is not None and dso is not None and dpo is not None:
+                    ccc = round(dio + dso - dpo, 1)
+                findings["working_capital"] = {"dio": dio, "dso": dso, "dpo": dpo, "ccc_days": ccc}
+        except Exception as e:
+            data_gaps.append(f"Working capital computation failed: {e}")
 
         # ── Revenue CAGR ──
-        if len(years) >= 4:
-            rev_first = _fget(pl.get(years[0], {}), "Revenue", "Sales+", "Net Sales")
-            rev_last = _fget(pl.get(years[-1], {}), "Revenue", "Sales+", "Net Sales")
-            if rev_first and rev_last and rev_first > 0 and rev_last > 0:
-                n = len(years) - 1
-                cagr = ((rev_last / rev_first) ** (1 / n) - 1) * 100
-                findings["revenue_cagr"] = {"pct": round(cagr, 2), "years": n}
+        try:
+            if len(years) >= 4:
+                rev_first = _fget(pl.get(years[0], {}), "Revenue", "Sales+", "Sales +", "Net Sales")
+                rev_last = _fget(pl.get(years[-1], {}), "Revenue", "Sales+", "Sales +", "Net Sales")
+                if rev_first and rev_last and rev_first > 0 and rev_last > 0:
+                    n = len(years) - 1
+                    cagr = ((rev_last / rev_first) ** (1 / n) - 1) * 100
+                    findings["revenue_cagr"] = {"pct": round(cagr, 2), "years": n}
+        except Exception as e:
+            data_gaps.append(f"Revenue CAGR computation failed: {e}")
 
         # ── Leverage ──
-        interest = _fget(latest_pl, "Interest", "Finance Costs", "Interest Expense", default=0)
-        if ebit and interest and interest > 0:
-            ic = round(ebit / interest, 2)
-            findings["interest_coverage"] = ic
-            if ic < 3:
-                flags.append(f"Interest coverage {ic}x — debt servicing risk")
+        try:
+            interest = _fget(latest_pl, "Interest", "Finance Costs", "Interest Expense", default=0)
+            if ebit and interest and interest > 0:
+                ic = round(ebit / interest, 2)
+                findings["interest_coverage"] = ic
+                if ic < 3:
+                    flags.append(f"Interest coverage {ic}x — debt servicing risk")
 
-        if ebitda and ebitda > 0:
-            net_debt = total_debt - (cash or 0)
-            findings["net_debt_ebitda"] = round(net_debt / ebitda, 2)
+            if ebitda and ebitda > 0:
+                net_debt = (total_debt or 0) - (cash or 0)
+                findings["net_debt_ebitda"] = round(net_debt / ebitda, 2)
+        except Exception as e:
+            data_gaps.append(f"Leverage computation failed: {e}")
 
         # ── Reverse DCF ──
-        market_cap = kwargs.get("market_cap")
-        if market_cap and ocf and capex:
-            fcf_base = ocf - abs(capex)
-            if fcf_base > 0:
-                wacc = kwargs.get("wacc", 0.12)
-                tg = kwargs.get("terminal_growth", 0.05)
-                implied_g = _reverse_dcf(market_cap, fcf_base, wacc, tg)
-                if implied_g is not None:
-                    findings["reverse_dcf_implied_growth"] = implied_g
+        try:
+            market_cap = kwargs.get("market_cap")
+            if market_cap and ocf and capex:
+                fcf_base = ocf - abs(capex)
+                if fcf_base > 0:
+                    wacc = kwargs.get("wacc", 0.12)
+                    tg = kwargs.get("terminal_growth", 0.05)
+                    implied_g = _reverse_dcf(market_cap, fcf_base, wacc, tg)
+                    if implied_g is not None:
+                        findings["reverse_dcf_implied_growth"] = implied_g
+        except Exception as e:
+            data_gaps.append(f"Reverse DCF computation failed: {e}")
 
         findings["flags"] = flags
         findings["data_gaps"] = data_gaps
