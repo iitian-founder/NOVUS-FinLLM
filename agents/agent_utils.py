@@ -25,12 +25,32 @@ def _safe_handler(fn):
     return wrapper
 
 def _fget(data: dict, *keys, default=None):
+    """Fuzzy key lookup with NBSP normalization.
+    
+    Screener.in injects non-breaking spaces (\\xa0) and trailing '+' into
+    its HTML table headers. This normalizes both the search keys and the
+    dict keys before matching to prevent silent None returns that cascade
+    into empty tool payloads and LLM hallucinations.
+    """
+    def _norm(s: str) -> str:
+        return s.replace('\xa0', ' ').rstrip('+').strip().lower()
+    
+    # Build a normalized lookup map once
+    norm_map = {_norm(dk): dv for dk, dv in data.items()}
+    
     for k in keys:
+        # 1. Exact match
         val = data.get(k)
         if val is not None:
             return val
-        for dk, dv in data.items():
-            if k.lower() in dk.lower():
+        # 2. Normalized exact match
+        nk = _norm(k)
+        val = norm_map.get(nk)
+        if val is not None:
+            return val
+        # 3. Substring match (normalized)
+        for dk_norm, dv in norm_map.items():
+            if nk in dk_norm or dk_norm in nk:
                 return dv
     return default
 
