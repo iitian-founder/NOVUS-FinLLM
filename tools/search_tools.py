@@ -20,3 +20,15 @@ def news_search_alpha_vantage(tickers: str, topics: str = None) -> str:
     """
     # TODO: Implement AlphaVantage News & Sentiment API
     return f"Simulated AlphaVantage news highlights for {tickers} related to {topics or 'all topics'}."
+
+@tool
+def x_social_search(query: str, limit: int = 10) -> str:
+    """
+    Search for recent tweets and sentiment on X (formerly Twitter) for a given topic or ticker.
+    
+    Args:
+        query: The search query (e.g. '$AAPL' or 'Apple product launch').
+        limit: The maximum number of tweets to retrieve and summarize.
+    """
+    # TODO: Implement actual X API integration (e.g. Apify Twitter Scraper or official API)
+    return f"Simulated X (Twitter) search results for query: '{query}' (limit {limit})"

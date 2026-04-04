@@ -8,7 +8,7 @@ if str(base_dir) not in sys.path:
 
 # Import Universal Tools
 from tools.financial_tools import get_financial_report
-from tools.search_tools import web_search, news_search_alpha_vantage
+from tools.search_tools import web_search, news_search_alpha_vantage, x_social_search
 from tools.rag_tools import search_company_documents
 from tools.math_tools import calculate_cagr, project_future_value, calculate_margin
 
@@ -20,7 +20,8 @@ ORCHESTRATOR_TOOLS = [
 
 RESEARCHER_TOOLS = [
     web_search, 
-    news_search_alpha_vantage
+    news_search_alpha_vantage,
+    x_social_search
 ]
 
 SYNTHESIZER_TOOLS = [
