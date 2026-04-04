@@ -40,18 +40,13 @@ class ForensicInvestigatorV3(AgentV3):
   "contingent_liabilities": [
     {"description": "Disputed indirect tax demands of Rs 892 Cr",
      "severity": "MEDIUM",
-     "evidence": "Note 38: Claims not acknowledged as debts — Rs 892 Cr in indirect taxes"}
+     "evidence": "Note 38: Claims not acknowledged as debts"}
   ],
   "earnings_quality_signals": [
-    "Trade receivables grew 18% while revenue grew 8% — potential channel stuffing",
-    "Provision for doubtful debts declined despite receivable growth — aggressive"
+    {"flag": "Trade receivables grew 18% while revenue grew 8%", "source_citation": "[AR 2024 | Balance Sheet]"}
   ],
-  "executive_summary": [
-    "No critical red flags. RPT (royalty) is structural and stable at 3.45%.",
-    "Receivable-revenue divergence needs monitoring — 18% vs 8% growth gap.",
-    "Contingent liabilities manageable at Rs 892 Cr vs net worth Rs 8,200 Cr."
-  ],
-  "data_gaps": ["Segment-wise RPT breakdown not available in provided context"]
+  "executive_summary": "Clean GAAP accounting but earnings quality is pressured by rising royalties. Audit rotation needs monitoring.",
+  "data_gaps": null
 }"""
 
     def build_agent_tools(self, doc: str, tables: dict, ticker: str = "") -> list[Tool]:

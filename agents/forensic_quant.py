@@ -1,6 +1,7 @@
 import time
 from core.agent_base_v3 import AuditTrail
 from .agent_utils import _fget, _reverse_dcf
+from rag_engine import query as rag_query
 
 class ForensicQuantV3:
     agent_name = "forensic_quant"
@@ -34,11 +35,19 @@ class ForensicQuantV3:
             ebit = _fget(latest_pl, "EBIT", "Operating Profit")
             pat = _fget(latest_pl, "Net Profit", "PAT", "Profit after tax")
             total_assets = _fget(latest_bs, "Total Assets")
-            total_equity = _fget(latest_bs, "Shareholders Funds", "Total Equity", "Equity")
+            
+            # Defensive Taxonomy: Screener splits Equity and Reserves
+            equity_cap = _fget(latest_bs, "Equity Capital", default=0)
+            reserves = _fget(latest_bs, "Reserves", default=0)
+            if equity_cap > 0 or reserves > 0:
+                total_equity = equity_cap + reserves
+            else:
+                total_equity = _fget(latest_bs, "Shareholders Funds", "Total Equity", "Equity", default=0)
+                
             total_debt = _fget(latest_bs, "Borrowings", "Total Debt", "Long Term Borrowings", default=0)
             cash = _fget(latest_bs, "Cash Equivalents", "Cash and Bank", "Cash", default=0)
 
-            if revenue and pat and total_assets and total_equity:
+            if revenue and pat and total_assets and total_equity and total_equity > 0:
                 margin = round(pat / revenue, 4)
                 turnover = round(revenue / total_assets, 4)
                 multiplier = round(total_assets / total_equity, 4)
@@ -58,14 +67,19 @@ class ForensicQuantV3:
             if ebit and total_equity is not None and total_debt is not None:
                 nopat = ebit * 0.75
                 invested_capital = total_equity + total_debt - (cash or 0)
+                
+                # Defensive Taxonomy for FMCG negative working capital
                 if invested_capital > 0:
-                    roic = round(nopat / invested_capital, 4)
-                    findings["roic_latest"] = roic
-                    wacc = kwargs.get("wacc", 0.12)
-                    if roic < wacc:
-                        flags.append(f"ROIC ({roic:.1%}) < WACC ({wacc:.1%}) — value destruction")
+                    if invested_capital < (revenue * 0.05):
+                        findings["roic_latest"] = "Unable to Verify (Potential massive goodwill or negative working capital skewing base)"
+                    else:
+                        roic = round(nopat / invested_capital, 4)
+                        findings["roic_latest"] = roic
+                        wacc = kwargs.get("wacc", 0.12)
+                        if roic < wacc:
+                            flags.append(f"ROIC ({roic:.1%}) < WACC ({wacc:.1%}) — value destruction")
                 else:
-                    data_gaps.append("Invested capital ≤ 0 — cannot compute ROIC")
+                    findings["roic_latest"] = "Unable to Verify (Invested capital is negative/zero)"
         except Exception as e:
             data_gaps.append(f"ROIC computation failed: {e}")
 
@@ -146,6 +160,28 @@ class ForensicQuantV3:
         except Exception as e:
             data_gaps.append(f"Reverse DCF computation failed: {e}")
 
+        # ── Anomaly Bridge (RAG Integration) ──
+        try:
+            if len(years) >= 2:
+                prev_pl = pl.get(years[-2], {})
+                prev_pat = _fget(prev_pl, "Net Profit", "PAT", "Profit after tax", default=0)
+                curr_pat = _fget(latest_pl, "Net Profit", "PAT", "Profit after tax", default=0)
+                
+                if curr_pat and prev_pat and prev_pat > 0:
+                    pat_growth = (curr_pat - prev_pat) / prev_pat
+                    if pat_growth > 0.20:
+                        # RAG query to bridge the gap
+                        res = rag_query(ticker, f"Why did net profit or other income jump heavily in {latest}?", top_k=2)
+                        if res:
+                            explanation = " | ".join(r['text'][:400] for r in res)
+                            findings["anomaly_flag"] = f"PAT surged {pat_growth:.1%} YoY. RAG Explanation: {explanation}"
+                        else:
+                            findings["anomaly_flag"] = f"PAT surged {pat_growth:.1%} YoY. No context found in documents."
+        except Exception as e:
+            flags.append(f"Bridge analysis failed: {e}")
+
+        # Filter out valid zeros
+        findings = {k: v for k, v in findings.items() if v is not None}
         findings["flags"] = flags
         findings["data_gaps"] = data_gaps
 

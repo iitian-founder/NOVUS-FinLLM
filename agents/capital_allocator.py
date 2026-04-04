@@ -23,32 +23,21 @@ class CapitalAllocatorV3(AgentV3):
         return """{
   "empire_building": {
     "unrelated_acquisitions": [
-      "Acquired D2C beauty brand for Rs 450 Cr — outside core FMCG competency"
+      {"event": "Acquired D2C beauty brand for Rs 450 Cr", "source_citation": "[Q2 Filings]"}
     ],
-    "cash_hoarding": false,
-    "excessive_goodwill": false,
-    "verdict": "1 unrelated acquisition in 12 months — early stage, not yet a pattern"
+    "verdict": "1 unrelated acquisition in 12 months"
   },
   "mna_quality": {
     "acquisitions": [
-      {"target": "Nutrition Co", "amount": "Rs 200 Cr", "year": "FY23",
-       "integration_status": "Integrated — 15% revenue growth post-acquisition",
-       "evidence": "Q4 transcript: 'Our nutrition portfolio grew 15% since acquisition'"}
-    ],
-    "goodwill_impairment_history": "No impairment in last 3 years"
+      {"target": "Nutrition Co", "amount": "Rs 200 Cr", "source_citation": "[AR 2024]"}
+    ]
   },
   "capital_return": {
-    "dividend_pattern": "Growing — DPS Rs 34 to Rs 39 over 3 years",
-    "buyback_activity": "No buybacks despite strong FCF — missed opportunity",
-    "payout_ratio": "~80% — disciplined but lacks reinvestment ambition"
+    "dividend_pattern": "Growing — DPS Rs 34 to Rs 39",
+    "source_citation": "[Screener / Cash Flow statement]"
   },
   "grade": "B",
-  "key_findings": [
-    "Strong dividend discipline but questionable M&A — D2C bet is unproven",
-    "No buybacks despite premium FCF yield",
-    "Nutrition acquisition integrating well — evidence of execution ability"
-  ],
-  "data_gaps": ["Detailed M&A valuation multiples not disclosed"]
+  "data_gaps": null
 }"""
 
     def build_agent_tools(self, doc: str, tables: dict, ticker: str = "") -> list[Tool]:

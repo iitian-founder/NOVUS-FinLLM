@@ -40,11 +40,9 @@ class MoatArchitectV3(AgentV3):
   },
   "moat_durability": "WEAKENING",
   "competitive_advantages": [
-    "Distribution moat intact (3.8M outlets) but rural erosion ongoing (-400K outlets)",
-    "Pricing power tested: demand elasticity higher than management expected",
-    "Brand premium holds in premium segment but value segment commoditising"
+    {"advantage": "Distribution moat intact (3.8M outlets)", "source_citation": "[AR 2024 | CEO Letter]"}
   ],
-  "data_gaps": ["Industry volume data not in context — cannot benchmark vs peers"]
+  "data_gaps": null
 }"""
 
     def build_agent_tools(self, doc: str, tables: dict, ticker: str = "") -> list[Tool]:

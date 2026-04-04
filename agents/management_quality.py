@@ -45,12 +45,11 @@ class ManagementQualityV3(AgentV3):
     "variable_vs_fixed": "60% variable — aligned with performance",
     "esos_dilution": "ESOS pool is 0.8% of outstanding shares — minimal dilution"
   },
-  "governance_flags": [
-    "2 independent directors serving > 8 years — re-evaluate independence",
-    "Company Secretary resignation in Q3 — check if governance-related"
+  "insider_transactions": [
+    {"transaction": "CEO bought 10,000 shares in open market", "source_citation": "[SAST Filings]"}
   ],
   "governance_grade": "B+",
-  "data_gaps": ["SAST filings not in provided context — cannot verify insider trades"]
+  "data_gaps": null
 }"""
 
     def build_agent_tools(self, doc: str, tables: dict, ticker: str = "") -> list[Tool]:

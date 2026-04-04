@@ -44,16 +44,11 @@ class NarrativeDecoderV3(AgentV3):
      "evasion_type": "Deflection — answered a different question",
      "significance": "MEDIUM"}
   ],
-  "key_phrases_flagged": [
-    "'One-time impact' used 4 times — pattern suggests recurring costs being positioned as temporary",
-    "'Strategic investment' used for every margin-dilutive action — possible euphemism for overspending"
+   "key_phrases_flagged": [
+    {"phrase": "'One-time impact'", "context": "Pattern suggests recurring costs being positioned as temporary", "source_citation": "[Q3 Call]"}
   ],
-  "executive_summary": [
-    "Major guidance miss on volumes: guided double-digit, delivered 2%.",
-    "Clear tone deterioration on rural demand — Q3 optimism → Q4 hedging.",
-    "Margin guidance actively avoided — bearish signal."
-  ],
-  "data_gaps": ["Only Q4 transcript available — cannot compare with Q3 guidance"]
+  "executive_summary": "Major guidance miss on volumes: guided double-digit, delivered 2%.",
+  "data_gaps": null
 }"""
 
     def build_agent_tools(self, doc: str, tables: dict, ticker: str = "") -> list[Tool]:

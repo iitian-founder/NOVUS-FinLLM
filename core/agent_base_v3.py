@@ -195,6 +195,9 @@ class AgentV3(ABC):
             "When you have completed your investigation, output your findings "
             "as a JSON object matching this example structure:\n\n"
             f"```json\n{self.output_example}\n```\n\n"
+            "CRITICAL INSTRUCTIONS:\n"
+            "1. You MUST include a 'source_citation' for every major qualitative claim (e.g., [Q3 Transcript | Page 4] or [RAG Semantic Source]). Any finding without a citation will be severely penalized.\n"
+            "2. 'data_gaps' is strictly OPTIONAL. If you found everything you needed, output \"data_gaps\": null. DO NOT invent missing data to fill an array.\n"
             "Only output the JSON when you are confident. Until then, keep investigating."
         )
         system_prompt = compose_prompt(
