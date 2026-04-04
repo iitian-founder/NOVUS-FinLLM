@@ -33,6 +33,7 @@ from agents.all_agents import (
     ManagementQualityV3,
     ForensicQuantV3,
     PMSynthesisV3,
+    CriticAgentV3,
     ALL_AGENTS,
 )
 
@@ -80,6 +81,11 @@ EXECUTION_PHASES = [
         "phase": "reflection",
         "parallel": False,
         "agents": [],   
+    },
+    {
+        "phase": "verification",
+        "parallel": False,
+        "agents": ["critic_agent"],
     },
     {
         "phase": "synthesis",
@@ -170,6 +176,17 @@ async def run_pipeline(
         progress_callback("lead_analyst_planning", [], [])
         
     state.agent_frameworks = await _generate_dynamic_frameworks(state, v3_llm)
+    
+    from core.sector_archetypes import get_guardrails
+    try:
+        archetype_guardrails = get_guardrails(sector, fuzzy=True)
+        if archetype_guardrails:
+            guardrail_text = f"\n\n[MANDATORY SECTOR GUARDRAILS ({sector.upper()})]:\n{archetype_guardrails}"
+            for agent_name in state.agent_frameworks:
+                state.agent_frameworks[agent_name] += guardrail_text
+    except Exception as e:
+        print(f"> [CIO] Could not inject sector archetypes for {sector}: {e}")
+        
     print(f"> [CIO] Lead Analyst generated frameworks for {len(state.agent_frameworks)} agents.")
 
     phase1 = EXECUTION_PHASES[0]
@@ -212,18 +229,103 @@ async def run_pipeline(
         progress_callback("conflict_check", [], list(state.agent_trails.keys()))
     state.conflicts = _detect_conflicts(state)
 
+    # ═══════════════════════════════════════════════════════════════════
+    # PHASE 3: VERIFICATION — Critic Agent scrubs all findings
+    # ═══════════════════════════════════════════════════════════════════
+    if progress_callback:
+        progress_callback("verification", ["critic_agent"], list(state.agent_trails.keys()))
+
+    # Extract current findings from all completed agents
+    peer_findings = {}
+    for name, trail in state.agent_trails.items():
+        if trail.findings:
+            peer_findings[name] = trail.findings
+    if state.conflicts:
+        peer_findings["_conflicts"] = state.conflicts
+
+    print(f"> [CIO] Dispatching Critic Agent to verify {len(peer_findings)} agent outputs...")
+
+    critic = CriticAgentV3()
+    critic_trail = await asyncio.to_thread(
+        critic.execute,
+        ticker=ticker,
+        document_text=document_text,
+        financial_tables=financial_tables,
+        sector=sector,
+        extraction_signals=extraction_signals,
+        peer_findings=peer_findings,
+        llm=v3_llm,
+        dynamic_mandate=state.agent_frameworks.get("critic_agent", "Verify every hard metric against source data.")
+    )
+    state.agent_trails["critic_agent"] = critic_trail
+
+    # Extract corrections from the Critic's output
+    critic_corrections = []
+    critic_status = "UNKNOWN"
+    if critic_trail.findings:
+        critic_corrections = critic_trail.findings.get("corrections", [])
+        critic_status = critic_trail.findings.get("verification_status", "UNKNOWN")
+    
+    print(f"> [CIO] Critic Agent: {len(critic_corrections)} corrections. Status: {critic_status}")
+
+    # ═══════════════════════════════════════════════════════════════════
+    # PHASE 4: SYNTHESIS — PM merges everything, with Critic overrides
+    # ═══════════════════════════════════════════════════════════════════
     if progress_callback:
         progress_callback("synthesis", ["pm_synthesis"], list(state.agent_trails.keys()))
 
+    # ── THE HARD OVERRIDE: Force Reality on the Pipeline ──
+    if critic_trail and critic_trail.findings and isinstance(critic_trail.findings, dict):
+        corrections = critic_trail.findings.get("corrections", [])
+        
+        for correction in corrections:
+            agent_name = correction.get("agent_name")
+            original_claim = str(correction.get("original_claim", ""))
+            verified_fact = str(correction.get("verified_fact", ""))
+            
+            # Physically replace the string in the agent's output dictionary
+            if agent_name in state.agent_trails and original_claim and verified_fact:
+                try:
+                    agent_finding_str = json.dumps(state.agent_trails[agent_name].findings)
+                    if original_claim in agent_finding_str:
+                        scrubbed_str = agent_finding_str.replace(original_claim, verified_fact)
+                        state.agent_trails[agent_name].findings = json.loads(scrubbed_str)
+                        print(f"> [CIO] 🚨 CRITIC OVERRIDE: Scrubbed '{original_claim}' -> '{verified_fact}' in {agent_name}")
+                except Exception as e:
+                    print(f"> [CIO] ⚠️ Failed to apply critic correction: {e}")
+    # ────────────────────────────────────────────────
+
+    if progress_callback:
+        progress_callback("synthesis", ["pm_synthesis"], list(state.agent_trails.keys()))
+
+    # Build the final agent outputs 
     agent_outputs = {}
     for name, trail in state.agent_trails.items():
-        if trail.findings:
+        # Exclude the Critic from the PM prompt since we already directly applied its corrections
+        if trail.findings and name != "critic_agent":  
             agent_outputs[name] = trail.findings
-    if state.conflicts:
-        agent_outputs["_conflicts"] = state.conflicts
 
     pm_signals = {**extraction_signals, "_agent_outputs": agent_outputs}
+
+    # Inject Critic corrections into PM Synthesis dynamic mandate
+    pm_mandate = state.agent_frameworks.get("pm_synthesis", "")
     
+    if critic_corrections:
+        corrections_text = json.dumps(critic_corrections, indent=2, default=str)
+        audit_injection = (
+            "\n\n## CRITICAL AUDIT REPORT\n"
+            "The following data points from the specialist agents contained errors "
+            "and were corrected by the Auditor. You MUST use these verified facts "
+            "in your final thesis, ignoring the erroneous claims:\n\n"
+            f"```json\n{corrections_text}\n```\n\n"
+            "Any metric listed as CORRECTED above supersedes the original agent claim. "
+            "Any metric listed as FLAGGED_AS_DATA_GAP must be acknowledged as unverified "
+            "in your report — do NOT present it as fact."
+        )
+        pm_mandate += audit_injection
+    elif critic_status == "CLEARED":
+        pm_mandate += "\n\n## AUDIT STATUS: ALL CLEAR\nThe Auditor has verified all material claims. No corrections needed."
+
     pm = PMSynthesisV3()
     thesis_trail = await asyncio.to_thread(
         pm.execute,
@@ -233,7 +335,7 @@ async def run_pipeline(
         sector=sector,
         extraction_signals=pm_signals,
         llm=r1_llm,  # R1 for deep reasoning synthesis
-        dynamic_mandate=state.agent_frameworks.get("pm_synthesis", "")
+        dynamic_mandate=pm_mandate
     )
     
     state.agent_trails["pm_synthesis"] = thesis_trail

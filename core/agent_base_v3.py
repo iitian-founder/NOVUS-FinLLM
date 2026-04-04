@@ -196,6 +196,7 @@ class AgentV3(ABC):
             "as a JSON object matching this example structure:\n\n"
             f"```json\n{self.output_example}\n```\n\n"
             "CRITICAL INSTRUCTIONS:\n"
+            "0. YOU ARE STRICTLY FORBIDDEN from executing empty tool calls like {}. Every tool call MUST contain specific, high-intent parameters (e.g., topic, min_year). If you execute an empty tool call, you will be terminated.\n"
             "1. You MUST include a 'source_citation' for every major qualitative claim (e.g., [Q3 Transcript | Page 4] or [RAG Semantic Source]). Any finding without a citation will be severely penalized.\n"
             "2. 'data_gaps' is strictly OPTIONAL. If you found everything you needed, output \"data_gaps\": null. DO NOT invent missing data to fill an array.\n"
             "Only output the JSON when you are confident. Until then, keep investigating."
@@ -254,6 +255,7 @@ class AgentV3(ABC):
                     "action": s.action or "reasoning",
                     "thought": (s.thought or "")[:200],
                     "observation": (s.observation or "")[:200],
+                    "input": s.action_input or {},
                 }
                 for s in react_result.reasoning_chain
             ],

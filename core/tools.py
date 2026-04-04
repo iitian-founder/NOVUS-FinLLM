@@ -92,8 +92,9 @@ def build_shared_tools(document_text: str, financial_tables: dict, ticker: str =
         parameters=_schema({
             "query":       ("string",  True,  "What to search for"),
             "max_results": ("integer", False, "1-5, default 3"),
+            "min_year":    ("integer", False, "Only return documents from this year or newer (e.g. 2023). Crucial for current strategy."),
         }),
-        handler=lambda query, max_results=3: _search_doc(document_text, query, max_results, ticker),
+        handler=lambda query, max_results=3, min_year=None: _search_doc(document_text, query, max_results, ticker, min_year),
     ))
 
     # ── 2. Get a specific page / note ─────────────────────────────────
@@ -114,9 +115,10 @@ def build_shared_tools(document_text: str, financial_tables: dict, ticker: str =
     reg.register(Tool(
         name="get_metric",
         description=(
-            "Get a financial line item across all available years. "
-            "Tables: profit_loss, balance_sheet, cash_flow. "
-            "Supports fuzzy matching — e.g. 'Revenue' matches 'Revenue from Operations'."
+            "Get a financial line item across all available years.\n"
+            "Tables: profit_loss, balance_sheet, cash_flow.\n"
+            "Supports fuzzy matching — e.g. 'Revenue' matches 'Revenue from Operations'.\n"
+            "WARNING: If making claims about 'current strategy', limit your analysis to the last 12-24 months. Label older data as 'Historical Context'."
         ),
         parameters=_schema({
             "line_item": ("string", True,  "e.g. 'Revenue from Operations', 'Trade Receivables'"),
@@ -204,7 +206,8 @@ def build_shared_tools(document_text: str, financial_tables: dict, ticker: str =
         name="list_available_data",
         description=(
             "List all available years and line-item names for a given table. "
-            "Call this FIRST if you're unsure what data is available."
+            "Call this FIRST if you're unsure what data is available. "
+            "WARNING: If making claims about 'current strategy', limit your analysis to the last 12-24 months. Label older data as 'Historical Context'."
         ),
         parameters=_schema({
             "table": ("string", True, "profit_loss | balance_sheet | cash_flow"),
@@ -231,20 +234,28 @@ def _schema(fields: dict) -> dict:
 
 
 def _fuzzy_get(data: dict, key: str):
-    """Try exact match, then case-insensitive substring match."""
+    """Try exact match, then NBSP-normalized, then case-insensitive substring match."""
     if key in data:
         return data[key]
-    key_lower = key.lower()
+    # Normalize: strip NBSP and trailing '+'
+    def _norm(s):
+        return s.replace('\xa0', ' ').rstrip('+').strip().lower()
+    key_norm = _norm(key)
     for k, v in data.items():
-        if key_lower in k.lower() or k.lower() in key_lower:
+        k_norm = _norm(k)
+        if key_norm == k_norm:
+            return v
+    for k, v in data.items():
+        k_norm = _norm(k)
+        if key_norm in k_norm or k_norm in key_norm:
             return v
     return None
 
 
-def _search_doc(text: str, query: str, max_results: int = 3, ticker: str = "") -> list[dict]:
+def _search_doc(text: str, query: str, max_results: int = 3, ticker: str = "", min_year: int = None) -> list[dict]:
     """BM25-style keyword search over document paragraphs, with an option to use semantic RAG."""
     if ticker:
-        results = rag_query(ticker, query, top_k=max_results)
+        results = rag_query(ticker, query, top_k=max_results, min_year=min_year)
         if results:
             return [{"passage": r["text"][:1000], "score": r["relevance"], "position": "rag_chunk"} for r in results]
     

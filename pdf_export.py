@@ -2,8 +2,7 @@
 Module for generating institutional-grade PDF reports ("Light-Mode Quant" aesthetic)
 using WeasyPrint. 
 """
-from weasyprint import HTML, CSS
-from weasyprint.text.fonts import FontConfiguration
+# Imports deferred to avoid crashing server on boot if OS dependencies are missing
 import io
 import datetime
 
@@ -196,10 +195,17 @@ def generate_quant_pdf(ticker: str, content_html: str) -> bytes:
     """
     
     # Render PDF in memory
-    font_config = FontConfiguration()
-    html = HTML(string=document_html)
-    
-    # We load standard CSS so normal element displays work
-    pdf_bytes = html.write_pdf(font_config=font_config)
-    
+    try:
+        from weasyprint import HTML
+        from weasyprint.text.fonts import FontConfiguration
+        font_config = FontConfiguration()
+        html = HTML(string=document_html)
+        
+        # We load standard CSS so normal element displays work
+        pdf_bytes = html.write_pdf(font_config=font_config)
+    except ImportError as e:
+        import logging
+        logging.error(f"Cannot generate PDF because WeasyPrint is unavailable: {e}")
+        pdf_bytes = b"PDF Generation Failed"
+        
     return pdf_bytes

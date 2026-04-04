@@ -28,6 +28,15 @@ Thumbs.db
 chroma_db/
 company_docs/
 
+# Node / Frontend build artifacts
+node_modules/
+.next/
+frontend/node_modules/
+frontend/.next/
+
+# Test / scratch files
+test.pdf
+
 # Local testing scripts
 get_financial_data_output_testing.py
 *_output_testing.py

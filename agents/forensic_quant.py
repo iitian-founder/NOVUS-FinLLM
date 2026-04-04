@@ -20,7 +20,7 @@ class ForensicQuantV3:
         data_gaps = []
         flags = []
 
-        years = sorted(pl.keys())
+        years = list(pl.keys())
         if not years:
             data_gaps.append("No P&L data available")
             return self._build_trail(ticker, findings, data_gaps, flags, start)
@@ -32,7 +32,7 @@ class ForensicQuantV3:
 
         # ── Profitability (DuPont) ──
         try:
-            revenue = _fget(latest_pl, "Revenue", "Sales+", "Sales +", "Net Sales", "Revenue from Operations")
+            revenue = _fget(latest_pl, "Revenue", "Sales", "Sales+", "Sales +", "Net Sales", "Revenue from Operations")
             ebit = _fget(latest_pl, "EBIT", "Operating Profit")
             pat = _fget(latest_pl, "Net Profit", "PAT", "Profit after tax")
             total_assets = _fget(latest_bs, "Total Assets")
@@ -71,7 +71,7 @@ class ForensicQuantV3:
                 
                 # Defensive Taxonomy for FMCG negative working capital
                 if invested_capital > 0:
-                    if invested_capital < (revenue * 0.05):
+                    if revenue and invested_capital < (revenue * 0.05):
                         findings["roic_latest"] = "Unable to Verify (Potential massive goodwill or negative working capital skewing base)"
                     else:
                         roic = round(nopat / invested_capital, 4)
@@ -164,7 +164,7 @@ class ForensicQuantV3:
         # ── Anomaly Bridge (RAG Integration) ──
         try:
             # 1. Check Quarterly Anomalies (Most critical for recent spikes like the 4048Cr Other Income)
-            q_quarters = sorted(qr.keys())
+            q_quarters = list(qr.keys())
             if len(q_quarters) >= 2:
                 latest_q = q_quarters[-1]
                 prev_q = q_quarters[-2]
@@ -187,15 +187,21 @@ class ForensicQuantV3:
             # 2. Check Annual Anomalies if Quarterly didn't trigger
             if "anomaly_flag" not in findings and len(years) >= 2:
                 prev_pl = pl.get(years[-2], {})
+                prev_cf = cf.get(years[-2], {})
                 prev_pat = _fget(prev_pl, "Net Profit", "PAT", "Profit after tax", default=0)
                 curr_pat = _fget(latest_pl, "Net Profit", "PAT", "Profit after tax", default=0)
                 
+                prev_ocf = _fget(prev_cf, "Operating Cash Flow", "Cash from Operating", "CFO", "Cash from Operating Activity +", "Cash from Operating Activity", default=0)
+                curr_ocf = _fget(latest_cf, "Operating Cash Flow", "Cash from Operating", "CFO", "Cash from Operating Activity +", "Cash from Operating Activity", default=0)
+                
                 if curr_pat and prev_pat and prev_pat > 0:
                     pat_growth = (curr_pat - prev_pat) / prev_pat
-                    if pat_growth > 0.20:
-                        res = rag_query(ticker, f"Why did net profit or other income jump heavily in {latest}? exceptional items", top_k=2)
+                    ocf_growth = (curr_ocf - prev_ocf) / abs(prev_ocf) if prev_ocf else 0
+                    
+                    if (pat_growth > ocf_growth + 0.10) or (curr_pat > curr_ocf):
+                        res = rag_query(ticker, f"Why did net profit grow faster than operating cash flow or exceed it in {latest}? exceptional items, other income", top_k=2)
                         ex = " | ".join(r['text'][:400] for r in res) if res else "No context found."
-                        findings["anomaly_flag"] = f"Annual Spike: {latest} PAT surged {pat_growth:.1%} YoY. RAG: {ex}"
+                        findings["anomaly_flag"] = f"Earnings Quality Divergence: {latest} PAT ({curr_pat}) vs OCF ({curr_ocf}). RAG: {ex}"
         except Exception as e:
             flags.append(f"Bridge analysis failed: {e}")
 

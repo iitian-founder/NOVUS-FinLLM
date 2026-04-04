@@ -95,6 +95,15 @@ def _transpose_table(rows: list) -> dict:
         if not label:
             continue
 
+        # ── CRITICAL: Sanitize label at the boundary ──
+        # Screener uses non-breaking spaces (\xa0) and trailing '+' in its HTML.
+        # e.g., "Sales\xa0+" → "Sales", "Net Profit\xa0+" → "Net Profit"
+        # If we don't strip these here, _fget fails, tools return empty {},
+        # and the LLM hallucinates to fill the gap.
+        label = label.replace('\xa0', ' ').strip()
+        if label.endswith('+'):
+            label = label[:-1].strip()
+
         # Allocate values to their respective fiscal years
         for col_name, value in row.items():
             col_str = str(col_name).strip()

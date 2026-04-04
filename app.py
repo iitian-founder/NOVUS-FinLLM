@@ -21,7 +21,13 @@ from rag_engine import get_collection_stats
 from rag_engine import ingest_documents
 from rag_engine import query as rag_query, get_collection_stats
 from screener_scraper import fetch_screener_tables
-from weasyprint import HTML
+try:
+    from weasyprint import HTML
+    WEASYPRINT_AVAILABLE = True
+except Exception as e:
+    import logging
+    logging.warning(f"WeasyPrint not available. PDF export disabled. Error: {e}")
+    WEASYPRINT_AVAILABLE = False
 import asyncio
 import datetime
 import glob
@@ -524,4 +530,4 @@ def export_pdf():
 app.register_blueprint(api_v1)
 
 if __name__ == '__main__':
-    app.run(port=5001, debug=True, host='0.0.0.0')
+    app.run(port=5001, debug=False, host='0.0.0.0')

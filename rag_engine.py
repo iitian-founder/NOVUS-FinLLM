@@ -208,6 +208,10 @@ def chunk_document_with_sections(
     all_chunks = []
     chunk_counter = 0
 
+    import re
+    year_match = re.search(r'(19|20)\d{2}', filename)
+    doc_year = int(year_match.group()) if year_match else 2020 # fallback
+
     for section in sections:
         section_text = text[section["start_idx"]:section["end_idx"]]
         if not section_text.strip():
@@ -229,6 +233,7 @@ def chunk_document_with_sections(
                     "doc_type": doc_type,
                     "section": section["title"],
                     "filename": filename,
+                    "year": doc_year,
                     "chunk_index": i,
                     "total_section_chunks": len(text_chunks),
                     "char_count": len(chunk),
@@ -392,6 +397,7 @@ def query(
     top_k: int = 5,
     doc_type_filter: str = None,
     section_filter: str = None,
+    min_year: int = None,
 ) -> list[dict]:
     """
     Query the RAG store for relevant chunks.
@@ -401,11 +407,20 @@ def query(
     collection = get_collection(ticker)
 
     # Build metadata filter
-    where_filter = {"ticker": ticker.upper()}
+    where_filter = {}
     if doc_type_filter:
         where_filter["doc_type"] = doc_type_filter
     if section_filter:
         where_filter["section"] = section_filter
+
+    if min_year:
+        where_clause = {"$and": [{"ticker": ticker.upper()}, {"year": {"$gte": min_year}}]}
+        for k, v in where_filter.items():
+            where_clause["$and"].append({k: v})
+        final_where = where_clause
+    else:
+        where_filter["ticker"] = ticker.upper()
+        final_where = where_filter
 
     # Embed query
     query_embedding = embed_query(question)
@@ -414,15 +429,16 @@ def query(
         results = collection.query(
             query_embeddings=[query_embedding],
             n_results=min(top_k, collection.count() or 1),
-            where=where_filter if len(where_filter) > 1 else None,
+            where=final_where,
         )
     except Exception as e:
-        logger.info(f"[RAG] Query failed: {e}")
-        # Retry without filters
+        logger.info(f"[RAG] Query failed with filter {final_where}: {e}")
+        # Retry without complex filters (fallback to just ticker)
         try:
             results = collection.query(
                 query_embeddings=[query_embedding],
                 n_results=min(top_k, collection.count() or 1),
+                where={"ticker": ticker.upper()}
             )
         except Exception:
             return []
