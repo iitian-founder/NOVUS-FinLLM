@@ -26,3 +26,12 @@ sse-starlette>=3.0.0
 uvicorn>=0.30.0
 structlog>=24.0.0
 flask_limiter
+langgraph
+langchain>=0.3.0
+langchain-core
+langchain-openai
+langchain-anthropic
+langchain-google-genai
+firecrawl-py>=1.0.0
+tavily-python>=0.5.0
+tweepy>=4.14.0

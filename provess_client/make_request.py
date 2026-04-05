@@ -33,7 +33,8 @@ def get_report(company_id,report_name): # company_id is the id of the company in
     url= 'https://prowess.cmie.com/api/getreport'
     json_batchfile= 'equity_ownership.json'
     mydata= { 'apikey': os.getenv('PROWESS_API_KEY'), 'company': company_id, 'format': 'json' }
-    myfile= { 'batchfile': open(f'batch_files/{report_name}.json', 'rb') }
+    batch_file_path = Path(__file__).resolve().parent / "batch_files" / f"{report_name}.json"
+    myfile= { 'batchfile': batch_file_path.open('rb') }
     response= requests.post(url, data = mydata, files = myfile)
     return response.text
 

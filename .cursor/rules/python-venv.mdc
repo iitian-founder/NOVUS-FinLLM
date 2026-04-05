@@ -1,0 +1,16 @@
+---
+description: Use the project virtualenv for all Python and pip terminal commands
+alwaysApply: true
+---
+
+# Python virtual environment
+
+This repo keeps dependencies in `venv/` at the project root (see `run_dev.sh`).
+
+When running **any** terminal command here that invokes Python, `pip`, `pytest`, `uvicorn`, or other tools installed in the venv, do one of the following:
+
+1. **Preferred (interactive shell):** from the project root (workspace root), prefix the command with activation:
+   `cd` to the repo root, then `source venv/bin/activate`, then run the command (single line: `cd … && source venv/bin/activate && …`).
+2. **Reliable without activation:** use the venv executables directly, e.g. `venv/bin/python` and `venv/bin/pip` from the repo root.
+
+Do not use the system `python3` / `pip` for project installs unless the user explicitly asks.

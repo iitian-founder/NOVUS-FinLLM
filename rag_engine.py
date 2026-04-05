@@ -183,12 +183,30 @@ def chunk_text(
                 if last_sep != -1:
                     end = search_start + last_sep + len(sep)
                     break
+            else:
+                # If no sentence boundary found, break at the last whitespace
+                last_space = search_region.rfind(' ')
+                last_newline = search_region.rfind('\n')
+                best_space = max(last_space, last_newline)
+                if best_space != -1:
+                    end = search_start + best_space + 1
 
         chunk = text[start:end].strip()
         if chunk:
             chunks.append(chunk)
 
         start = end - overlap
+        
+        # Ensure the next chunk doesn't start mid-word
+        if start > 0 and start < len(text):
+            next_space = text.find(' ', start, start + 100)
+            next_newline = text.find('\n', start, start + 100)
+            if next_space != -1 and next_newline != -1:
+                start = min(next_space, next_newline) + 1
+            elif next_space != -1:
+                start = next_space + 1
+            elif next_newline != -1:
+                start = next_newline + 1
 
     return chunks
 

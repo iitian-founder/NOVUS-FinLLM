@@ -1,4 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Resolve repo root so venv activation works no matter where the script is invoked from.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT" || exit 1
 source venv/bin/activate
 
 export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib:/opt/anaconda3/lib:/usr/local/lib:$DYLD_FALLBACK_LIBRARY_PATH
