@@ -142,6 +142,39 @@ def _get_latest_fy_col(col_labels: list[str]) -> tuple[int, str]:
     return latest_fy_col, latest_fy_label
 
 
+def _parse_line_items(
+    data_lines: list[str], header_end_idx: int, latest_fy_col: int
+) -> tuple[float, Dict[str, float], Dict[str, float]]:
+    all_line_items: Dict[str, float] = {}
+    total_revenue = 0.0
+    expenses: Dict[str, float] = {}
+
+    for line in data_lines[header_end_idx:]:
+        cells = line.split("|")
+        if len(cells) < 2:
+            continue
+
+        label = cells[0].strip()
+        if not label:
+            continue
+
+        value = None
+        if 0 < latest_fy_col < len(cells):
+            value = _parse_number(cells[latest_fy_col])
+
+        if value is None:
+            continue
+
+        all_line_items[label] = value
+
+        if _is_revenue_line(label):
+            total_revenue = max(total_revenue, abs(value))
+        elif not _should_skip(label) and value > 0:
+            expenses[label] = abs(value)
+
+    return total_revenue, expenses, all_line_items
+
+
 def parse_ie_psv(psv_text: str) -> Dict[str, Any]:
     """
     Parse a cleaned Prowess I&E PSV string into a structured dict.
@@ -175,32 +208,9 @@ def parse_ie_psv(psv_text: str) -> Dict[str, Any]:
     header_end_idx, col_labels = _find_header_info(data_lines)
     latest_fy_col, latest_fy_label = _get_latest_fy_col(col_labels)
 
-    all_line_items: Dict[str, float] = {}
-    total_revenue = 0.0
-    expenses: Dict[str, float] = {}
-
-    for line in data_lines[header_end_idx:]:
-        cells = line.split("|")
-        if len(cells) < 2:
-            continue
-
-        label = cells[0].strip()
-        if not label:
-            continue
-
-        value = None
-        if 0 < latest_fy_col < len(cells):
-            value = _parse_number(cells[latest_fy_col])
-
-        if value is None:
-            continue
-
-        all_line_items[label] = value
-
-        if _is_revenue_line(label):
-            total_revenue = max(total_revenue, abs(value))
-        elif not _should_skip(label) and value > 0:
-            expenses[label] = abs(value)
+    total_revenue, expenses, all_line_items = _parse_line_items(
+        data_lines, header_end_idx, latest_fy_col
+    )
 
     return {
         "total_revenue": total_revenue,
