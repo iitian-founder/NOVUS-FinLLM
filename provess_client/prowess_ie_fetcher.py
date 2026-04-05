@@ -62,7 +62,7 @@ def fetch_clean_ie_statement(company_name: str) -> str | None:
 
     psv = clean_single_report(company_name, "Income_Expenditure_Summary", payload)
     if psv is None:
-        print(f"[prowess_ie_fetcher] clean_single_report returned None (no data or error in payload)")
+        print("[prowess_ie_fetcher] clean_single_report returned None (no data or error in payload)")
         return None
 
     print(f"[prowess_ie_fetcher] ✅ Cleaned I&E statement: {len(psv)} chars, "

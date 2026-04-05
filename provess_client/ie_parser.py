@@ -90,6 +90,58 @@ def _should_skip(label: str) -> bool:
     return any(p.match(label.strip()) for p in _SKIP_PATTERNS)
 
 
+def _get_empty_result() -> Dict[str, Any]:
+    return {
+        "total_revenue": 0.0,
+        "segments": {},
+        "expenses": {},
+        "expense_line_items": {},
+        "fiscal_year": "unknown",
+        "source": "prowess_ie_statement",
+        "all_line_items": {},
+    }
+
+
+def _extract_data_lines(psv_text: str) -> list[str]:
+    data_lines = []
+    for line in psv_text.strip().split("\n"):
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#"):
+            data_lines.append(stripped)
+    return data_lines
+
+
+def _find_header_info(data_lines: list[str]) -> tuple[int, list[str]]:
+    fiscal_year_re = re.compile(r"(Mar|Jun|Sep|Dec)\s*\d{4}")
+    header_end_idx = 0
+    col_labels = []
+    for i, line in enumerate(data_lines):
+        cells = line.split("|")
+        year_matches = [c.strip() for c in cells if fiscal_year_re.match(c.strip())]
+        if year_matches:
+            col_labels = [c.strip() for c in cells]
+            header_end_idx = i + 1
+
+    if not col_labels and data_lines:
+        col_labels = [c.strip() for c in data_lines[0].split("|")]
+        header_end_idx = 1
+    return header_end_idx, col_labels
+
+
+def _get_latest_fy_col(col_labels: list[str]) -> tuple[int, str]:
+    fiscal_year_re = re.compile(r"(Mar|Jun|Sep|Dec)\s*\d{4}")
+    latest_fy_col = -1
+    latest_fy_label = "unknown"
+    for idx, label in enumerate(col_labels):
+        if fiscal_year_re.match(label):
+            latest_fy_col = idx
+            latest_fy_label = label
+
+    if latest_fy_col < 0:
+        latest_fy_col = len(col_labels) - 1 if col_labels else -1
+    return latest_fy_col, latest_fy_label
+
+
 def parse_ie_psv(psv_text: str) -> Dict[str, Any]:
     """
     Parse a cleaned Prowess I&E PSV string into a structured dict.
@@ -114,72 +166,15 @@ def parse_ie_psv(psv_text: str) -> Dict[str, Any]:
         }
     """
     if not psv_text or not psv_text.strip():
-        return {
-            "total_revenue": 0.0,
-            "segments": {},
-            "expenses": {},
-            "expense_line_items": {},
-            "fiscal_year": "unknown",
-            "source": "prowess_ie_statement",
-            "all_line_items": {},
-        }
+        return _get_empty_result()
 
-    lines = psv_text.strip().split("\n")
-
-    # ── Step 1: Identify header rows and fiscal year columns ─────────────
-    # Skip meta lines (start with #) and empty lines
-    data_lines = []
-    header_lines = []
-    for line in lines:
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        data_lines.append(stripped)
-
+    data_lines = _extract_data_lines(psv_text)
     if not data_lines:
-        return {
-            "total_revenue": 0.0,
-            "segments": {},
-            "expenses": {},
-            "expense_line_items": {},
-            "fiscal_year": "unknown",
-            "source": "prowess_ie_statement",
-            "all_line_items": {},
-        }
+        return _get_empty_result()
 
-    # The first few data lines are header rows (contain date/year labels).
-    # We identify the header by checking for fiscal year patterns like "Mar 2024".
-    fiscal_year_re = re.compile(r"(Mar|Jun|Sep|Dec)\s*\d{4}")
+    header_end_idx, col_labels = _find_header_info(data_lines)
+    latest_fy_col, latest_fy_label = _get_latest_fy_col(col_labels)
 
-    # Find header row(s) — rows where cells match fiscal year patterns
-    header_end_idx = 0
-    col_labels = []
-    for i, line in enumerate(data_lines):
-        cells = line.split("|")
-        year_matches = [c.strip() for c in cells if fiscal_year_re.match(c.strip())]
-        if year_matches:
-            col_labels = [c.strip() for c in cells]
-            header_end_idx = i + 1
-
-    # If no fiscal year header found, try to use the first row as header
-    if not col_labels and data_lines:
-        col_labels = [c.strip() for c in data_lines[0].split("|")]
-        header_end_idx = 1
-
-    # ── Step 2: Identify the latest fiscal year column index ─────────────
-    latest_fy_col = -1
-    latest_fy_label = "unknown"
-    for idx, label in enumerate(col_labels):
-        if fiscal_year_re.match(label):
-            latest_fy_col = idx
-            latest_fy_label = label
-    # The last matching column is the latest year (Prowess orders oldest → newest)
-
-    if latest_fy_col < 0:
-        # Fallback: use the last numeric column
-        latest_fy_col = len(col_labels) - 1 if col_labels else -1
-
-    # ── Step 3: Parse data rows ──────────────────────────────────────────
     all_line_items: Dict[str, float] = {}
     total_revenue = 0.0
     expenses: Dict[str, float] = {}
@@ -193,9 +188,8 @@ def parse_ie_psv(psv_text: str) -> Dict[str, Any]:
         if not label:
             continue
 
-        # Get value from the latest fiscal year column
         value = None
-        if latest_fy_col > 0 and latest_fy_col < len(cells):
+        if 0 < latest_fy_col < len(cells):
             value = _parse_number(cells[latest_fy_col])
 
         if value is None:
@@ -203,11 +197,9 @@ def parse_ie_psv(psv_text: str) -> Dict[str, Any]:
 
         all_line_items[label] = value
 
-        # Classify: revenue or expense
         if _is_revenue_line(label):
             total_revenue = max(total_revenue, abs(value))
         elif not _should_skip(label) and value > 0:
-            # Positive values for non-revenue, non-skip lines are expenses
             expenses[label] = abs(value)
 
     return {

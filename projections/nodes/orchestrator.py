@@ -31,7 +31,7 @@ def orchestrator_node(state: ProjectionState):
 
     # ── Enrich financial_data from Prowess I&E PSV ───────────────────────
     if ie_psv:
-        print(f"\n📊 Orchestrator: Enriching financial_data from Prowess I&E PSV...")
+        print("\n📊 Orchestrator: Enriching financial_data from Prowess I&E PSV...")
         financial_data = enrich_financial_data_from_psv(financial_data, ie_psv)
         print(f"   Total Revenue: {financial_data.get('total_revenue', 'N/A')}")
         print(f"   Expense items: {len(financial_data.get('expenses', {}))}")

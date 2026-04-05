@@ -161,7 +161,7 @@ async def company_overview_node(
     print(f"   Data sources: {data_sources}")
 
     # Show preview
-    print(f"\n┌── Context Preview ──")
+    print("\n┌── Context Preview ──")
     print(combined_context[:1000] + ("\n..." if len(combined_context) > 1000 else ""))
     print(f"└{'─'*50}")
 
@@ -188,7 +188,7 @@ async def company_overview_node(
     # Inject data_sources provenance
     overview.data_sources = data_sources
 
-    print(f"\n✅ Structured output received!")
+    print("\n✅ Structured output received!")
     print(f"   Company : {overview.company_identity.full_name}")
     print(f"   HQ      : {overview.company_identity.headquarters}")
     print(f"   Tickers : {overview.company_identity.tickers}")
@@ -198,7 +198,7 @@ async def company_overview_node(
     print(f"   Sources : {overview.data_sources}")
 
     # ── Step 3: Guardrail validation ──────────────────────────────────────
-    print(f"\n🛡️  Step 3: Running guardrail validation...")
+    print("\n🛡️  Step 3: Running guardrail validation...")
     is_valid, warnings = validate_overview(overview)
 
     if is_valid:
