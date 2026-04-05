@@ -18,9 +18,9 @@ router variables (material_segments, material_line_items).
 from typing import Dict, List, Any, Optional
 
 
-def identify_material_segments(financial_data: Dict[str, Any], threshold: float = 0.05) -> List[str]:
+def identify_material_segments(financial_data: Dict[str, Any], threshold: float = 0.10) -> List[str]:
     """
-    Identifies revenue segments that contribute more than the threshold (default 5%)
+    Identifies revenue segments that contribute more than the threshold (default 10%)
     to the total revenue base, isolating them for parallel research analysis.
     
     Args:
@@ -35,7 +35,12 @@ def identify_material_segments(financial_data: Dict[str, Any], threshold: float 
     
     # Safely extract segments, substituting with an empty dict if not found
     segments = financial_data.get("segments", {})
-    total_revenue = financial_data.get("total_revenue", sum(segments.values()) if segments else 0)
+    total_revenue = financial_data.get("total_revenue")
+    if not total_revenue:
+        try:
+            total_revenue = sum(float(v) for v in segments.values() if v is not None)
+        except (ValueError, TypeError):
+            total_revenue = 0.0
     
     if total_revenue <= 0:
         return material
@@ -50,10 +55,10 @@ def identify_material_segments(financial_data: Dict[str, Any], threshold: float 
     return material
 
 
-def identify_material_expenses(financial_data: Dict[str, Any], revenue_threshold: float = 0.20) -> List[str]:
+def identify_material_expenses(financial_data: Dict[str, Any], revenue_threshold: float = 0.10) -> List[str]:
     """
     Identifies expense line items that make up a significant portion of the total revenue
-    (default 20%). This guides the model to only research the largest cost drivers.
+    (default 10%). This guides the model to only research the largest cost drivers.
 
     Args:
         financial_data: The fetched financial JSON structure.

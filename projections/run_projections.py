@@ -9,14 +9,14 @@ This script:
   3. Invokes the LangGraph financial projections graph with pre-computed context.
 
 Usage:
-    # Full pipeline: CIO → Projections
+    # Full pipeline: CIO → Projections (runs CIO inline)
     python -m projections.run_projections --company "Hindustan Unilever Ltd." --ticker HINDUNILVR
 
-    # Standalone (no CIO, falls back to Tavily + RAG):
-    python -m projections.run_projections --company "Hindustan Unilever Ltd." --ticker HINDUNILVR --standalone
-
-    # With a pre-saved CIO report JSON:
+    # With a pre-saved CIO report JSON (skips inline CIO run):
     python -m projections.run_projections --company "Hindustan Unilever Ltd." --ticker HINDUNILVR --cio-report path/to/report.json
+
+    # Standalone (no CIO context, falls back to Tavily + RAG):
+    python -m projections.run_projections --company "Hindustan Unilever Ltd." --ticker HINDUNILVR --standalone
 """
 
 from __future__ import annotations
@@ -161,8 +161,23 @@ async def main():
             else:
                 print(f"[run_projections] ⚠️  CIO report not found: {report_path}")
         else:
-            print("[run_projections] No --cio-report provided. To use CIO context, pass --cio-report <path>.")
-            print("                  Proceeding without executive summary.")
+            print("[run_projections] No --cio-report provided. Running inline CIO pipeline...")
+            try:
+                from cio_orchestrator import run_pipeline
+                cio_state = await run_pipeline(
+                    ticker=args.ticker,
+                    document_text="",
+                    financial_tables={},
+                    sector="General",
+                    extraction_signals={},
+                    query=f"Generate equity research executive summary for {args.company}",
+                )
+                executive_summary = _extract_executive_summary_from_cio(cio_state)
+                if not executive_summary:
+                    print("[run_projections] ⚠️  CIO pipeline returned no summary. Proceeding without executive summary.")
+            except Exception as e:
+                print(f"[run_projections] ⚠️  Inline CIO pipeline failed: {e}")
+                print("                  Proceeding without executive summary.")
 
     # ── Step 2: Fetch + clean I&E from Prowess ───────────────────────────
     if not args.skip_ie:

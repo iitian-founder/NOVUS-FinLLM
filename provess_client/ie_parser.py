@@ -223,6 +223,148 @@ def parse_ie_psv(psv_text: str) -> Dict[str, Any]:
     }
 
 
+def parse_ie_psv_all_years(psv_text: str) -> Dict[str, Any]:
+    """
+    Parse a cleaned Prowess I&E PSV string and extract data for ALL fiscal years.
+
+    Unlike parse_ie_psv() which only grabs the latest column, this extracts
+    the full time series for historical trend analysis and CAGR computation.
+
+    Parameters
+    ----------
+    psv_text : str
+        The pipe-separated-values text from clean_json / prowess_ie_fetcher.
+
+    Returns
+    -------
+    dict
+        {
+            "fiscal_years": ["Mar 2020", "Mar 2021", ..., "Mar 2024"],
+            "revenue_by_year": {"Mar 2020": 38785.0, "Mar 2021": 46575.0, ...},
+            "line_items_by_year": {
+                "Raw Materials Consumed": {"Mar 2020": 15800.0, ...},
+                "Employee Cost": {"Mar 2020": 2800.0, ...},
+            },
+            "all_items_by_year": {  # includes revenue, expenses, derived items
+                "Sales Turnover": {"Mar 2020": 38785.0, ...},
+                ...
+            },
+            "source": "prowess_ie_statement"
+        }
+    """
+    import re as _re
+
+    result: Dict[str, Any] = {
+        "fiscal_years": [],
+        "revenue_by_year": {},
+        "line_items_by_year": {},
+        "all_items_by_year": {},
+        "source": "prowess_ie_statement",
+    }
+
+    if not psv_text or not psv_text.strip():
+        return result
+
+    data_lines = _extract_data_lines(psv_text)
+    if not data_lines:
+        return result
+
+    # Find header row with fiscal year labels
+    header_end_idx, col_labels = _find_header_info(data_lines)
+
+    # Identify all fiscal year columns
+    fiscal_year_re = _re.compile(r"(Mar|Jun|Sep|Dec)\s*\d{4}")
+    fy_columns: list[tuple[int, str]] = []
+    for idx, label in enumerate(col_labels):
+        if fiscal_year_re.match(label):
+            fy_columns.append((idx, label))
+
+    if not fy_columns:
+        return result
+
+    result["fiscal_years"] = [label for _, label in fy_columns]
+
+    # Parse each data row across ALL fiscal year columns
+    for line in data_lines[header_end_idx:]:
+        cells = line.split("|")
+        if len(cells) < 2:
+            continue
+
+        label = cells[0].strip()
+        if not label:
+            continue
+
+        year_values: Dict[str, float] = {}
+        for col_idx, fy_label in fy_columns:
+            if col_idx < len(cells):
+                val = _parse_number(cells[col_idx])
+                if val is not None:
+                    year_values[fy_label] = val
+
+        if not year_values:
+            continue
+
+        # Store in all_items
+        result["all_items_by_year"][label] = year_values
+
+        # Classify
+        if _is_revenue_line(label):
+            result["revenue_by_year"] = year_values
+        elif not _should_skip(label):
+            result["line_items_by_year"][label] = year_values
+
+    return result
+
+
+def compute_cagrs(
+    all_years_data: Dict[str, Any],
+    min_years: int = 2,
+) -> Dict[str, float]:
+    """
+    Compute trailing CAGRs for each line item from the multi-year parsed data.
+
+    Parameters
+    ----------
+    all_years_data : dict
+        Output from parse_ie_psv_all_years().
+    min_years : int
+        Minimum number of years required to compute a CAGR. Default 2.
+
+    Returns
+    -------
+    dict
+        {"line_item_name": cagr_pct, ...}  e.g. {"Employee Cost": 9.3, ...}
+    """
+    cagrs: Dict[str, float] = {}
+    fiscal_years = all_years_data.get("fiscal_years", [])
+
+    if len(fiscal_years) < min_years:
+        return cagrs
+
+    first_fy = fiscal_years[0]
+    last_fy = fiscal_years[-1]
+    n_years = len(fiscal_years) - 1  # number of growth periods
+
+    # Revenue CAGR
+    rev = all_years_data.get("revenue_by_year", {})
+    if first_fy in rev and last_fy in rev and rev[first_fy] > 0:
+        ratio = rev[last_fy] / rev[first_fy]
+        cagr = (ratio ** (1.0 / n_years) - 1) * 100
+        cagrs["Revenue"] = round(cagr, 2)
+
+    # Line item CAGRs
+    for item_name, year_values in all_years_data.get("line_items_by_year", {}).items():
+        if first_fy in year_values and last_fy in year_values:
+            start_val = year_values[first_fy]
+            end_val = year_values[last_fy]
+            if start_val > 0 and end_val > 0:
+                ratio = end_val / start_val
+                cagr = (ratio ** (1.0 / n_years) - 1) * 100
+                cagrs[item_name] = round(cagr, 2)
+
+    return cagrs
+
+
 # ── Quick smoke test ─────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import json as _json
@@ -252,5 +394,15 @@ Reported Net Profit|6,738|8,076|8,818|10,282|10,276
 EPS|15.75|18.87|20.6|24.02|24.01
 """
 
+    print("── Single Year (latest) ──")
     result = parse_ie_psv(psv_text)
     print(_json.dumps(result, indent=2, default=str))
+
+    print("\n── All Years ──")
+    all_years = parse_ie_psv_all_years(psv_text)
+    print(_json.dumps(all_years, indent=2, default=str))
+
+    print("\n── CAGRs ──")
+    cagrs = compute_cagrs(all_years)
+    print(_json.dumps(cagrs, indent=2))
+
