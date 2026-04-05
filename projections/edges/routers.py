@@ -7,6 +7,7 @@ def fan_out_to_segments(state: ProjectionState):
     'segment_researcher' node for each segment natively.
     """
     segments = state.get("material_segments", [])
+    # Note: If this is an empty list, no segments are fanned out
     
     if not segments:
         # If no material segments were found, proceed directly to expenses (fallback logic)
