@@ -21,8 +21,13 @@ class ProjectionState(TypedDict):
     # Core state
     messages: Annotated[list[BaseMessage], add_messages]
     company_name: str
-    business_model_context: Optional[str]            # Fetched from narrative_decoder/RAG
+    business_model_context: Optional[Dict[str, Any]] # Structured overview from company_overview_node
     financial_data: Dict[str, Any]                   # Raw data from Prowess API
+    
+    # Pre-computed context from upstream CIO pipeline (optional)
+    # When present, company_overview_node skips Tavily/RAG and uses these directly.
+    executive_summary: Optional[str]                 # PM Synthesis executive summary from CIO report
+    income_expenditure_psv: Optional[str]            # Cleaned I&E statement PSV from Prowess/clean_json
     
     # Hub and Spoke routing state - Revenue Sectors
     material_segments: List[str]                     # Segments > 5% threshold

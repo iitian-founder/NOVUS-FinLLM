@@ -26,7 +26,7 @@ ProviderName = Literal["openai", "gemini", "grok", "deepseek", "claude"]
 _DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 _DEFAULT_GEMINI_MODEL = "gemini-3-pro-preview"
 _DEFAULT_GROK_MODEL = "grok-4.1-fast"
-_DEFAULT_DEEPSEEK_MODEL = "deepseek-v3.2-exp"
+_DEFAULT_DEEPSEEK_MODEL = "deepseek-chat"
 _DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-6"
 
 

@@ -4,6 +4,7 @@ from langgraph.graph import StateGraph, START, END
 from projections.state import ProjectionState
 
 # Import Nodes
+from projections.nodes.company_overview import company_overview_node
 from projections.nodes.orchestrator import orchestrator_node
 from projections.nodes.segment_researcher import segment_researcher_node
 from projections.nodes.expense_analyzer import expense_analyzer_node
@@ -20,14 +21,18 @@ def build_projections_graph():
     builder = StateGraph(ProjectionState)
 
     # Add all nodes
+    builder.add_node("company_overview", company_overview_node)
     builder.add_node("orchestrator", orchestrator_node)
     builder.add_node("segment_researcher", segment_researcher_node)
     builder.add_node("expense_analyzer", expense_analyzer_node)
     builder.add_node("synthesizer", synthesizer_node)
     builder.add_node("blender", blender_node)
 
-    # 1. Start -> Orchestrator
-    builder.add_edge(START, "orchestrator")
+    # 1. Start -> Company Overview
+    builder.add_edge(START, "company_overview")
+
+    # 2. Company Overview -> Orchestrator
+    builder.add_edge("company_overview", "orchestrator")
 
     # 2. Orchestrator -> [Segment Researchers] (Map-Reduce Send API)
     builder.add_conditional_edges(
