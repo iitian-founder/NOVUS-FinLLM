@@ -47,15 +47,13 @@ def fan_out_to_parallel(state: ProjectionState):
             "financial_data": state.get("financial_data", {}),
         }))
 
-    # Management guidance extractor (single node, also parallel)
-    sends.append(Send("mgmt_guidance_extractor", {
-        "company_name": state["company_name"],
-        "business_model_context": state.get("business_model_context", {}),
-    }))
-
-    if not sends:
-        # Safety: if no segments/expenses and guidance extractor fails,
-        # proceed directly to historical_trends
+    # Management guidance extractor runs in parallel only when there are segments/expenses to research
+    if sends:
+        sends.append(Send("mgmt_guidance_extractor", {
+            "company_name": state["company_name"],
+            "business_model_context": state.get("business_model_context", {}),
+        }))
+    else:
         return "historical_trends"
 
     return sends

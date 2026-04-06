@@ -110,8 +110,9 @@ async def run_projections(
         The final ProjectionState after graph execution.
     """
     from projections.graph import build_projections_graph
+    from langgraph.checkpoint.memory import MemorySaver
 
-    graph = build_projections_graph()
+    graph = build_projections_graph(checkpointer=MemorySaver())
 
     initial_state = {
         "company_name": company_name,
@@ -135,7 +136,8 @@ async def run_projections(
     print(f"  LAUNCHING FINANCIAL PROJECTIONS GRAPH — {company_name} ({ticker})")
     print(f"{'='*70}\n")
 
-    result = await graph.ainvoke(initial_state)
+    config = {"configurable": {"thread_id": f"{company_name}_{ticker}"}}
+    result = await graph.ainvoke(initial_state, config=config)
     return result
 
 
@@ -211,9 +213,9 @@ async def main():
     print(f"\n   Material Segments: {result.get('material_segments', [])}")
     print(f"   Material Expenses: {result.get('material_line_items', [])}")
 
-    final = result.get("final_projection", {})
+    final = result.get("final_report", "")
     if final:
-        print(f"\n   Final Projection: {json.dumps(final, indent=2, default=str)}")
+        print(f"\n   Final Report:\n{final[:2000]}")
 
     return result
 

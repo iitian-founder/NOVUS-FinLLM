@@ -45,13 +45,14 @@ _safe = {{k: __builtins__[k] if isinstance(__builtins__, dict) else getattr(__bu
 _safe["math"] = math
 _safe["json"] = json
 
-# ── Inject the projection code ──
-{code}
+# ── Execute the projection code in the restricted namespace ──
+_ns = {{"__builtins__": _safe}}
+exec(compile({code!r}, "<projection>", "exec"), _ns)
 
-# ── Load assumptions and execute ──
+# ── Load assumptions and call run_projection ──
 assumptions = json.loads('''{assumptions_json}''')
 try:
-    result = run_projection(assumptions)
+    result = _ns["run_projection"](assumptions)
     print(json.dumps(result, indent=2, default=str))
 except Exception as exc:
     print(json.dumps({{"error": str(exc)}}, indent=2))
@@ -90,16 +91,16 @@ def code_executor_node(state: Dict[str, Any]) -> Dict[str, Any]:
             f.write(sandbox_script)
             script_path = f.name
 
-        result = subprocess.run(
-            [sys.executable, script_path],
-            capture_output=True,
-            text=True,
-            timeout=SANDBOX_TIMEOUT_SECONDS,
-            env={},  # Empty env → no network, no secrets
-        )
-
-        # Clean up
-        Path(script_path).unlink(missing_ok=True)
+        try:
+            result = subprocess.run(
+                [sys.executable, script_path],
+                capture_output=True,
+                text=True,
+                timeout=SANDBOX_TIMEOUT_SECONDS,
+                env={},  # Empty env → no network, no secrets
+            )
+        finally:
+            Path(script_path).unlink(missing_ok=True)
 
         if result.returncode != 0:
             error_msg = result.stderr.strip() or result.stdout.strip()
@@ -130,7 +131,6 @@ def code_executor_node(state: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     except subprocess.TimeoutExpired:
-        Path(script_path).unlink(missing_ok=True)
         print(f"  ❌ Sandbox timeout after {SANDBOX_TIMEOUT_SECONDS}s")
         return {
             "code_execution_error": f"Execution timed out after {SANDBOX_TIMEOUT_SECONDS}s",
