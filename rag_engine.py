@@ -422,6 +422,7 @@ def ingest_documents_from_paths(
     """
     selected = file_paths[:max_files]
     files_data: list[tuple[str, bytes]] = []
+    successfully_ingested: list[str] = []
     for path in selected:
         p = Path(path)
         if not p.exists() or not p.is_file():
@@ -429,6 +430,7 @@ def ingest_documents_from_paths(
         try:
             with p.open("rb") as f:
                 files_data.append((p.name, f.read()))
+            successfully_ingested.append(path)
         except Exception:
             continue
     if not files_data:
@@ -441,7 +443,7 @@ def ingest_documents_from_paths(
         }
     result = ingest_documents(ticker, files_data)
     result["ingested_files"] = len(files_data)
-    mark_indexed(selected[: len(files_data)])
+    mark_indexed(successfully_ingested)
     return result
 
 
@@ -568,7 +570,14 @@ def query_with_planner(
 
     combined = []
     seen = set()
-    for row in vector_results + lexical_evidence:
+    # Only promote lexical-metadata-only candidates when vector results leave genuine gaps.
+    # This prevents low-signal blurbs from filling context when the vector store is well-populated.
+    vector_slots_filled = sum(
+        1 for r in vector_results
+        if r.get("retrieval_channel") != "lexical"
+    )
+    admit_lexical = vector_slots_filled < max(top_k - 2, top_k // 2)
+    for row in vector_results + (lexical_evidence if admit_lexical else []):
         key = (
             row.get("metadata", {}).get("filename"),
             row.get("metadata", {}).get("section"),

@@ -179,6 +179,11 @@ def build_registry():
         return jsonify({"error": "Missing 'root_path' in request body"}), 400
     if not os.path.isdir(root_path):
         return jsonify({"error": f"Folder not found: {root_path}"}), 404
+    corpus_base = os.environ.get("CORPUS_BASE_DIR", "")
+    if corpus_base:
+        from pathlib import Path as _Path
+        if not _Path(root_path).resolve().is_relative_to(_Path(corpus_base).resolve()):
+            return jsonify({"error": "root_path is outside the permitted corpus directory"}), 403
     result = register_corpus(root_path)
     stats = registry_stats()
     return jsonify({"status": "ok", "result": result, "stats": stats})
@@ -219,7 +224,10 @@ def improve_prompt_book():
     template_id = data.get("template_id")
     if not template_id:
         return jsonify({"error": "Missing 'template_id'"}), 400
-    improved = improve_prompt_template(template_id)
+    try:
+        improved = improve_prompt_template(template_id)
+    except ValueError:
+        return jsonify({"error": f"Template '{template_id}' not found"}), 404
     return jsonify({"status": "improved", "template": improved})
 
 @api_v1.route('/job_status/<job_id>')

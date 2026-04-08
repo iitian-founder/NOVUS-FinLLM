@@ -40,7 +40,7 @@ class RegistryDoc:
     mtime_epoch: float
     doc_type: str
     period_label: str
-    content_hash: str
+    mtime_size_hash: str  # lightweight fingerprint: MD5(path+size+mtime), NOT a content hash
     parse_status: str = "discovered"
     vector_status: str = "not_indexed"
     access_count: int = 0
@@ -133,8 +133,10 @@ def _infer_period_label(filename: str) -> str:
 
 def _build_doc(path: Path, root: Path) -> RegistryDoc:
     stat = path.stat()
+    # Lightweight fingerprint based on path+size+mtime — not a true content hash.
+    # Fast enough for large corpora; a restored backup at the same size/mtime will not be re-indexed.
     content_sig = f"{path.resolve()}:{stat.st_size}:{stat.st_mtime}"
-    content_hash = hashlib.md5(content_sig.encode("utf-8")).hexdigest()
+    mtime_size_hash = hashlib.md5(content_sig.encode("utf-8")).hexdigest()
     doc_id = hashlib.sha1(str(path.resolve()).encode("utf-8")).hexdigest()
     now = _utc_now()
     return RegistryDoc(
@@ -147,7 +149,7 @@ def _build_doc(path: Path, root: Path) -> RegistryDoc:
         mtime_epoch=stat.st_mtime,
         doc_type=_infer_doc_type(path.name),
         period_label=_infer_period_label(path.name),
-        content_hash=content_hash,
+        mtime_size_hash=mtime_size_hash,
         created_at=now,
         updated_at=now,
     )
@@ -174,7 +176,7 @@ def register_corpus(root_path: str | Path, db_path: str | Path = DEFAULT_REGISTR
                 "SELECT content_hash FROM documents WHERE source_path = ?",
                 (doc.source_path,),
             ).fetchone()
-            if existing and existing["content_hash"] == doc.content_hash:
+            if existing and existing["content_hash"] == doc.mtime_size_hash:
                 skipped += 1
                 continue
 
@@ -208,7 +210,7 @@ def register_corpus(root_path: str | Path, db_path: str | Path = DEFAULT_REGISTR
                     doc.mtime_epoch,
                     doc.doc_type,
                     doc.period_label,
-                    doc.content_hash,
+                    doc.mtime_size_hash,
                     doc.parse_status,
                     doc.vector_status,
                     doc.access_count,

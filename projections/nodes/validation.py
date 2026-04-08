@@ -54,18 +54,39 @@ def _check_ebitda_margin(projection: Dict[str, Any], historical: Dict[str, Any])
             ebitda_data = derived["EBITDA"]
             ebitda = list(ebitda_data.values()) if isinstance(ebitda_data, dict) else ebitda_data
 
-    # Get historical margin as anchor
+    # Compute historical average EBITDA margin as the anchor for the ±15pp guardrail.
     hist_rev = historical.get("revenue_by_year", {})
-    if hist_rev and isinstance(total_revenue, list) and isinstance(ebitda, list):
+    hist_ebitda = historical.get("ebitda_by_year", {})
+    hist_margins = []
+    for year in hist_rev:
+        rev = hist_rev[year]
+        ebt = hist_ebitda.get(year)
+        if rev and rev > 0 and ebt is not None:
+            hist_margins.append((ebt / rev) * 100)
+
+    use_fixed_band = not hist_margins  # fall back when history is absent
+    hist_avg = sum(hist_margins) / len(hist_margins) if hist_margins else None
+
+    if isinstance(total_revenue, list) and isinstance(ebitda, list):
         for i in range(len(ebitda)):
             if i < len(total_revenue) and total_revenue[i] and total_revenue[i] > 0:
                 margin = (ebitda[i] / total_revenue[i]) * 100
-                # Simple check: flag if margin is outside 5-40% range (reasonable for most companies)
-                if margin < 5 or margin > 40:
+                if use_fixed_band:
+                    # No history available — use a broad sanity band
+                    if margin < 5 or margin > 40:
+                        flags.append({
+                            "type": "warning",
+                            "check": "ebitda_margin_unusual",
+                            "message": f"EBITDA margin of {margin:.1f}% in projected year {i + 1} seems unusual",
+                        })
+                elif abs(margin - hist_avg) > 15:
                     flags.append({
                         "type": "warning",
-                        "check": "ebitda_margin_unusual",
-                        "message": f"EBITDA margin of {margin:.1f}% in projected year {i + 1} seems unusual",
+                        "check": "ebitda_margin_deviation",
+                        "message": (
+                            f"EBITDA margin of {margin:.1f}% in projected year {i + 1} "
+                            f"deviates {abs(margin - hist_avg):.1f}pp from historical average of {hist_avg:.1f}%"
+                        ),
                     })
     return flags
 

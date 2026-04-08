@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +16,7 @@ from typing import Dict, List
 
 
 PROMPT_BOOK_PATH = Path(__file__).resolve().parent / "data" / "prompt_books.json"
+_store_lock = threading.Lock()
 
 
 def _utc_now() -> str:
@@ -27,16 +29,28 @@ def _ensure_store() -> None:
         PROMPT_BOOK_PATH.write_text(json.dumps({"templates": []}, indent=2), encoding="utf-8")
 
 
-def _load() -> Dict:
+def _load_locked() -> Dict:
+    """Read store — caller must hold _store_lock."""
     _ensure_store()
     with PROMPT_BOOK_PATH.open("r", encoding="utf-8") as f:
         return json.load(f)
 
 
-def _save(payload: Dict) -> None:
+def _save_locked(payload: Dict) -> None:
+    """Write store — caller must hold _store_lock."""
     _ensure_store()
     with PROMPT_BOOK_PATH.open("w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
+
+
+def _load() -> Dict:
+    with _store_lock:
+        return _load_locked()
+
+
+def _save(payload: Dict) -> None:
+    with _store_lock:
+        _save_locked(payload)
 
 
 def _extract_variables(raw_prompt: str) -> List[str]:
@@ -62,23 +76,24 @@ def create_prompt_template(
     role_tags: List[str] | None = None,
     expected_output_schema: Dict | None = None,
 ) -> Dict:
-    payload = _load()
-    template_id = f"tpl_{uuid.uuid4().hex[:12]}"
-    template = {
-        "template_id": template_id,
-        "version": 1,
-        "title": title,
-        "raw_prompt": raw_prompt,
-        "variables": _extract_variables(raw_prompt),
-        "role_tags": role_tags or [],
-        "expected_output_schema": expected_output_schema or {},
-        "quality": evaluate_prompt_quality(raw_prompt),
-        "status": "draft",
-        "created_at": _utc_now(),
-        "updated_at": _utc_now(),
-    }
-    payload["templates"].append(template)
-    _save(payload)
+    with _store_lock:
+        payload = _load_locked()
+        template_id = f"tpl_{uuid.uuid4().hex[:12]}"
+        template = {
+            "template_id": template_id,
+            "version": 1,
+            "title": title,
+            "raw_prompt": raw_prompt,
+            "variables": _extract_variables(raw_prompt),
+            "role_tags": role_tags or [],
+            "expected_output_schema": expected_output_schema or {},
+            "quality": evaluate_prompt_quality(raw_prompt),
+            "status": "draft",
+            "created_at": _utc_now(),
+            "updated_at": _utc_now(),
+        }
+        payload["templates"].append(template)
+        _save_locked(payload)
     return template
 
 
@@ -104,26 +119,27 @@ def render_prompt(template_id: str, variables: Dict[str, str]) -> str:
 
 
 def improve_prompt_template(template_id: str) -> Dict:
-    payload = _load()
-    for i, t in enumerate(payload.get("templates", [])):
-        if t["template_id"] != template_id:
-            continue
-        improved_text = t["raw_prompt"]
-        if "source" not in improved_text.lower():
-            improved_text += "\n\nCite source document names for every material claim."
-        if "risk" not in improved_text.lower():
-            improved_text += "\nInclude a dedicated Risk Factors section."
-        if "if unknown" not in improved_text.lower():
-            improved_text += "\nIf the context is insufficient, explicitly say what is missing."
+    with _store_lock:
+        payload = _load_locked()
+        for i, t in enumerate(payload.get("templates", [])):
+            if t["template_id"] != template_id:
+                continue
+            improved_text = t["raw_prompt"]
+            if "source" not in improved_text.lower():
+                improved_text += "\n\nCite source document names for every material claim."
+            if "risk" not in improved_text.lower():
+                improved_text += "\nInclude a dedicated Risk Factors section."
+            if "if unknown" not in improved_text.lower():
+                improved_text += "\nIf the context is insufficient, explicitly say what is missing."
 
-        new_t = dict(t)
-        new_t["version"] = int(t.get("version", 1)) + 1
-        new_t["raw_prompt"] = improved_text
-        new_t["variables"] = _extract_variables(improved_text)
-        new_t["quality"] = evaluate_prompt_quality(improved_text)
-        new_t["status"] = "approved" if new_t["quality"]["score"] >= 0.8 else "draft"
-        new_t["updated_at"] = _utc_now()
-        payload["templates"][i] = new_t
-        _save(payload)
-        return new_t
+            new_t = dict(t)
+            new_t["version"] = int(t.get("version", 1)) + 1
+            new_t["raw_prompt"] = improved_text
+            new_t["variables"] = _extract_variables(improved_text)
+            new_t["quality"] = evaluate_prompt_quality(improved_text)
+            new_t["status"] = "approved" if new_t["quality"]["score"] >= 0.8 else "draft"
+            new_t["updated_at"] = _utc_now()
+            payload["templates"][i] = new_t
+            _save_locked(payload)
+            return new_t
     raise ValueError(f"Unknown template_id: {template_id}")
