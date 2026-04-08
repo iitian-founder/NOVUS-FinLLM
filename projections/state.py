@@ -87,6 +87,11 @@ class ProjectionState(TypedDict):
     # Node 6b: guidance_deviation_check
     deviation_flags: Dict[str, Any]                      # Comparison: assumptions vs guidance
 
+    # Node 7: scenario_backtest
+    scenario_analysis: Dict[str, Any]                    # Bull/base/bear deltas by line item
+    backtest_metrics: Dict[str, Any]                     # Historical consistency/error metrics
+    assumption_provenance: Dict[str, Any]                # Source-linked audit trail of assumptions
+
     # ═══════════════════════════════════════════════════════════════════════
     # PHASE B — Interactive Analyst Loop (HITL)
     # ═══════════════════════════════════════════════════════════════════════

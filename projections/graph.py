@@ -25,6 +25,7 @@ from projections.nodes.mgmt_guidance_extractor import mgmt_guidance_extractor_no
 from projections.nodes.historical_trends import historical_trends_node
 from projections.nodes.assumptions_generator import assumptions_generator_node
 from projections.nodes.guidance_deviation_check import guidance_deviation_check_node
+from projections.nodes.scenario_backtest import scenario_backtest_node
 
 # Import Nodes — Phase B (Interactive Analyst Loop)
 from projections.nodes.analyst_review import analyst_review_node
@@ -78,6 +79,7 @@ def build_projections_graph(checkpointer=None):
     builder.add_node("historical_trends", historical_trends_node)
     builder.add_node("assumptions_generator", assumptions_generator_node)
     builder.add_node("guidance_deviation_check", guidance_deviation_check_node)
+    builder.add_node("scenario_backtest", scenario_backtest_node)
 
     # Phase B: Interactive Analyst Loop
     builder.add_node("analyst_review", analyst_review_node)
@@ -114,7 +116,8 @@ def build_projections_graph(checkpointer=None):
     # Phase A: historical_trends → assumptions_generator → guidance_deviation_check
     builder.add_edge("historical_trends", "assumptions_generator")
     builder.add_edge("assumptions_generator", "guidance_deviation_check")
-    builder.add_edge("guidance_deviation_check", "analyst_review")
+    builder.add_edge("guidance_deviation_check", "scenario_backtest")
+    builder.add_edge("scenario_backtest", "analyst_review")
 
     # Phase B: Analyst review → conditional routing
     builder.add_conditional_edges(
