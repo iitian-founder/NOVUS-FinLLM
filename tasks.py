@@ -16,7 +16,8 @@ from rq import get_current_job
 _runner = asyncio.Runner()
 
 from agents.extraction import run_extraction_pipeline
-from rag_engine import ingest_documents, get_collection_stats, get_context_for_agent
+from rag_engine import ingest_documents, get_collection_stats, get_context_for_agent, query_with_planner
+from prompt_books import render_prompt
 from structured_data_fetcher import get_structured_data_fetcher
 from cio_orchestrator import analyze, OrchestratorState
 
@@ -89,7 +90,7 @@ def _update_progress(stage: str, extra: dict | None = None):
     job.save_meta()
 
 
-def generate_financial_report_from_rag(ticker):
+def generate_financial_report_from_rag(ticker, template_id=None):
     """
     RAG-Only Mode: Full Novus analysis using ONLY:
       1. Stored documents in ChromaDB (previously ingested)
@@ -98,8 +99,6 @@ def generate_financial_report_from_rag(ticker):
     No PDF upload needed — everything comes from the vector store.
     """
     try:
-        from rag_engine import query as rag_query
-
         # ═══════════════════════════════════════════════════════════════
         # CHECK RAG STORE
         # ═══════════════════════════════════════════════════════════════
@@ -132,7 +131,8 @@ def generate_financial_report_from_rag(ticker):
         transcript_parts = []
         seen_ids = set()
         for q in key_queries:
-            results = rag_query(ticker, q, top_k=5)
+            planned = query_with_planner(ticker=ticker, question=q, top_k=5)
+            results = planned.get("results", [])
             for r in results:
                 chunk_hash = hash(r['text'][:100])
                 if chunk_hash not in seen_ids:
@@ -170,6 +170,11 @@ def generate_financial_report_from_rag(ticker):
             _update_progress(stage, extra)
 
         user_query = f"Analyze {ticker} focusing on forensics, competitive moat, narrative shifts, and capital allocation."
+        if template_id:
+            try:
+                user_query = render_prompt(template_id, {"ticker": ticker, "question": user_query})
+            except Exception as exc:
+                logger.info(f"[PromptBook] Failed to render template {template_id}: {exc}")
         
         # Auto-detected sector from Screener.in (e.g., "Fast Moving Consumer Goods")
         detected_sector = structured_data.get("sector", "General")
