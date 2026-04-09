@@ -21,10 +21,13 @@ import hashlib
 import fitz  # PyMuPDF
 from typing import Optional
 from dotenv import load_dotenv
+from pathlib import Path
 
 import chromadb
 from chromadb.config import Settings
 import google.generativeai as genai
+from document_registry import mark_accessed, mark_indexed
+from query_planner import plan_query, RetrievalBudget
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
@@ -409,6 +412,41 @@ def ingest_documents(
     }
 
 
+def ingest_documents_from_paths(
+    ticker: str,
+    file_paths: list[str],
+    max_files: int = 8,
+) -> dict:
+    """
+    Bounded ingest helper for cold-start planning.
+    """
+    selected = file_paths[:max_files]
+    files_data: list[tuple[str, bytes]] = []
+    successfully_ingested: list[str] = []
+    for path in selected:
+        p = Path(path)
+        if not p.exists() or not p.is_file():
+            continue
+        try:
+            with p.open("rb") as f:
+                files_data.append((p.name, f.read()))
+            successfully_ingested.append(path)
+        except Exception:
+            continue
+    if not files_data:
+        return {
+            "total_chunks": 0,
+            "doc_types": [],
+            "sections_found": [],
+            "collection_name": get_collection(ticker).name,
+            "ingested_files": 0,
+        }
+    result = ingest_documents(ticker, files_data)
+    result["ingested_files"] = len(files_data)
+    mark_indexed(successfully_ingested)
+    return result
+
+
 def query(
     ticker: str,
     question: str,
@@ -473,9 +511,109 @@ def query(
                 "text": doc,
                 "metadata": meta,
                 "relevance": round(1 - dist, 3),  # Convert distance to similarity
+                "distance": dist,
             })
 
     return formatted
+
+
+def query_with_planner(
+    ticker: str,
+    question: str,
+    top_k: int = 8,
+    budget: RetrievalBudget | None = None,
+) -> dict:
+    """
+    Hybrid retrieval:
+      1) Query planner chooses strategy using collection warmth and lexical shortlist
+      2) Optional bounded cold-start ingest
+      3) Vector retrieval + lexical evidence fusion
+    """
+    collection = get_collection(ticker)
+    collection_count = collection.count()
+    plan = plan_query(ticker=ticker, question=question, collection_chunk_count=collection_count, budget=budget)
+
+    cold_ingest_stats = {}
+    if plan.cold_ingest_paths:
+        cold_ingest_stats = ingest_documents_from_paths(
+            ticker=ticker,
+            file_paths=plan.cold_ingest_paths,
+            max_files=plan.budgets.get("max_cold_ingest_files", 8),
+        )
+
+    vector_results = query(
+        ticker=ticker,
+        question=question,
+        top_k=plan.budgets.get("max_vector_results", top_k),
+    )
+
+    lexical_evidence = []
+    for item in plan.lexical_shortlist[: max(3, top_k // 2)]:
+        lexical_evidence.append(
+            {
+                "text": (
+                    f"[Lexical candidate] {item.get('filename')} "
+                    f"(type={item.get('doc_type')}, period={item.get('period_label')})"
+                ),
+                "metadata": {
+                    "filename": item.get("filename"),
+                    "doc_type": item.get("doc_type"),
+                    "section": "metadata_shortlist",
+                    "source_path": item.get("source_path"),
+                    "doc_id": item.get("doc_id"),
+                },
+                "relevance": 0.2,
+                "distance": 0.8,
+                "retrieval_channel": "lexical",
+            }
+        )
+
+    combined = []
+    seen = set()
+    # Only promote lexical-metadata-only candidates when vector results leave genuine gaps.
+    # This prevents low-signal blurbs from filling context when the vector store is well-populated.
+    vector_slots_filled = sum(
+        1 for r in vector_results
+        if r.get("retrieval_channel") != "lexical"
+    )
+    admit_lexical = vector_slots_filled < max(top_k - 2, top_k // 2)
+    for row in vector_results + (lexical_evidence if admit_lexical else []):
+        key = (
+            row.get("metadata", {}).get("filename"),
+            row.get("metadata", {}).get("section"),
+            row.get("text", "")[:80],
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        combined.append(row)
+        if len(combined) >= top_k:
+            break
+
+    accessed = [
+        x.get("metadata", {}).get("doc_id")
+        for x in lexical_evidence
+        if x.get("metadata", {}).get("doc_id")
+    ]
+    mark_accessed([a for a in accessed if a])
+
+    return {
+        "results": combined,
+        "plan": {
+            "ticker": plan.ticker,
+            "strategy": plan.strategy,
+            "reason": plan.reason,
+            "budgets": plan.budgets,
+            "shortlist_count": len(plan.lexical_shortlist),
+            "cold_ingest_count": len(plan.cold_ingest_paths),
+        },
+        "telemetry": {
+            "vector_results": len(vector_results),
+            "lexical_results": len(lexical_evidence),
+            "combined_results": len(combined),
+            "cold_ingest": cold_ingest_stats,
+        },
+    }
 
 
 def get_context_for_agent(

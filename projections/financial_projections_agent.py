@@ -1,5 +1,16 @@
+"""
+financial_projections_agent.py — v2 Public API
+================================================
+Entry point for the financial projections pipeline.
+Supports both standalone mode and CIO-pipeline integration.
+
+Requires a checkpointer for HITL (interrupt/resume) support.
+"""
+
 import sys
 from pathlib import Path
+from typing import Any, Dict, Optional
+
 from langchain_core.messages import HumanMessage
 
 # Add the parent directory to sys.path
@@ -9,54 +20,101 @@ if str(base_dir) not in sys.path:
 
 from projections.graph import build_projections_graph
 
-def run_projections(company_name: str, years: int = 3) -> dict:
+
+def run_projections(
+    company_name: str,
+    *,
+    years: int = 3,
+    executive_summary: Optional[str] = None,
+    income_expenditure_psv: Optional[str] = None,
+    checkpointer=None,
+    thread_id: str = "default",
+) -> Dict[str, Any]:
     """
-    Public API to execute the financial projections graph for a given company.
-    
+    Public API to execute the financial projections graph (v2).
+
     Args:
         company_name: The company to project.
-        years: How many years out to project.
-        
+        years: Projection horizon (default 3).
+        executive_summary: Optional CIO PM Synthesis summary (standalone mode skips this).
+        income_expenditure_psv: Optional pre-fetched I&E PSV string.
+        checkpointer: LangGraph checkpointer for interrupt/resume support.
+            Use MemorySaver() for development.
+        thread_id: Thread ID for the checkpointer.
+
     Returns:
-        The final state dict containing the blended projection.
+        The final state dict (or intermediate state if interrupted for HITL).
     """
-    app = build_projections_graph()
-    
-    # Initialize the complex state
+    app = build_projections_graph(checkpointer=checkpointer)
+
     initial_state = {
         "messages": [HumanMessage(content=f"Begin projections for {company_name}")],
         "company_name": company_name,
-        "business_model_context": None, # Will be fetched via RAG later
-        "financial_data": {
-            # Simulated dummy data for the orchestrator to test the flow
-            "total_revenue": 10000.0,
-            "segments": {
-                "Infrastructure": 4500.0,
-                "Consumer_Goods": 2500.0,
-                "Export": 2500.0,
-                "Other": 500.0
-            },
-            "expenses": {
-                "Raw_Materials": 3000.0,
-                "Employee_Costs": 2500.0,
-                "Other_Expenses": 500.0
-            }
-        },
+        "financial_data": {},
+        # Upstream context (optional — from CIO pipeline)
+        "executive_summary": executive_summary,
+        "income_expenditure_psv": income_expenditure_psv,
+        # Phase A outputs (will be populated by nodes)
+        "business_model_context": None,
         "material_segments": [],
-        "segment_results": {},
         "material_line_items": [],
+        "segment_results": {},
         "expense_results": {},
-        "bottom_up_projection": {},
-        "mgmt_guidance_projection": {},
-        "final_projection": {}
+        "mgmt_guidance": {},
+        "historical_analysis": {},
+        "draft_assumptions": {},
+        "deviation_flags": {},
+        "scenario_analysis": {},
+        "backtest_metrics": {},
+        "assumption_provenance": {},
+        # Phase B (HITL)
+        "analyst_action": None,
+        "followup_question": None,
+        "qa_history": [],
+        "assumption_tweaks": [],
+        "locked_assumptions": None,
+        # Phase C (Projection)
+        "generated_projection_code": None,
+        "code_approved": False,
+        "code_execution_error": None,
+        "multi_year_projection": {},
+        # Validation & Report
+        "validation_result": {},
+        "final_report": "",
+        # CMIE data (fetched by orchestrator)
+        "balance_sheet_data": None,
+        "capex_data": None,
+        "capital_history_data": None,
+        "cash_flow_data": None,
     }
-    
-    print(f"--- Starting Financial Projections for {company_name} ---")
-    final_state = app.invoke(initial_state)
+
+    print(f"\n{'='*70}")
+    print(f"🚀 NOVUS Financial Projections v2 — {company_name}")
+    print(f"   Horizon: {years} years | Mode: {'CIO Pipeline' if executive_summary else 'Standalone'}")
+    print(f"{'='*70}")
+
+    config = {"configurable": {"thread_id": thread_id}}
+    final_state = app.invoke(initial_state, config=config)
     return final_state
 
+
 if __name__ == "__main__":
-    # Test execution
-    result = run_projections(company_name="Reliance Industries Ltd")
-    print("\n--- FINAL PROJECTION RESULT ---")
-    print(result.get("final_projection"))
+    # Development test — standalone mode
+    from langgraph.checkpoint.memory import MemorySaver
+
+    checkpointer = MemorySaver()
+    result = run_projections(
+        company_name="Hindustan Unilever Ltd.",
+        checkpointer=checkpointer,
+    )
+    print(f"\n{'='*70}")
+    print("📊 FINAL STATE KEYS:")
+    for k, v in result.items():
+        if isinstance(v, str):
+            print(f"  {k}: {len(v)} chars")
+        elif isinstance(v, dict):
+            print(f"  {k}: {len(v)} keys")
+        elif isinstance(v, list):
+            print(f"  {k}: {len(v)} items")
+        else:
+            print(f"  {k}: {type(v).__name__}")

@@ -18,8 +18,14 @@ from flask import Response
 from flask import send_file
 from llm_clients import client, deepseek_model_name
 from rag_engine import get_collection_stats
-from rag_engine import ingest_documents
-from rag_engine import query as rag_query, get_collection_stats
+from rag_engine import ingest_documents, query_with_planner
+from document_registry import register_corpus, registry_stats
+from prompt_books import (
+    create_prompt_template,
+    improve_prompt_template,
+    list_prompt_templates,
+    render_prompt,
+)
 from screener_scraper import fetch_screener_tables
 try:
     from weasyprint import HTML
@@ -135,12 +141,14 @@ def analyze_rag():
         return jsonify({"error": "Missing 'ticker' in request body"}), 400
 
     ticker = data['ticker'].upper()
+    template_id = data.get("template_id")
 
     # Queue the background task
     queue = get_queue()
     job = queue.enqueue(
         generate_financial_report_from_rag,
         ticker,
+        template_id,
         ttl=3600,
         result_ttl=3600,
         failure_ttl=7200,
@@ -152,8 +160,75 @@ def analyze_rag():
         "status": "queued",
         "ticker": ticker,
         "mode": "rag_only",
+        "template_id": template_id,
         "message": f"RAG-only analysis for {ticker} started. Use /job_status/{job.id} to check progress."
     })
+
+
+@api_v1.route('/registry/build', methods=['POST'])
+@require_api_key
+@limiter.limit("5 per hour")
+def build_registry():
+    """
+    Build/update corpus metadata registry from a local filesystem root.
+    Body: { "root_path": "/path/to/corpus" }
+    """
+    data = request.get_json() or {}
+    root_path = data.get("root_path")
+    if not root_path:
+        return jsonify({"error": "Missing 'root_path' in request body"}), 400
+    if not os.path.isdir(root_path):
+        return jsonify({"error": f"Folder not found: {root_path}"}), 404
+    corpus_base = os.environ.get("CORPUS_BASE_DIR", "")
+    if corpus_base:
+        from pathlib import Path as _Path
+        if not _Path(root_path).resolve().is_relative_to(_Path(corpus_base).resolve()):
+            return jsonify({"error": "root_path is outside the permitted corpus directory"}), 403
+    result = register_corpus(root_path)
+    stats = registry_stats()
+    return jsonify({"status": "ok", "result": result, "stats": stats})
+
+
+@api_v1.route('/prompt_books/upload', methods=['POST'])
+@require_api_key
+@limiter.limit("20 per hour")
+def upload_prompt_book():
+    data = request.get_json() or {}
+    title = data.get("title")
+    raw_prompt = data.get("prompt")
+    role_tags = data.get("role_tags", [])
+    expected_output_schema = data.get("expected_output_schema", {})
+    if not title or not raw_prompt:
+        return jsonify({"error": "Missing 'title' or 'prompt'"}), 400
+    template = create_prompt_template(
+        title=title,
+        raw_prompt=raw_prompt,
+        role_tags=role_tags,
+        expected_output_schema=expected_output_schema,
+    )
+    return jsonify({"status": "created", "template": template})
+
+
+@api_v1.route('/prompt_books/list', methods=['GET'])
+@require_api_key
+def list_prompt_books():
+    templates = list_prompt_templates()
+    return jsonify({"templates": templates, "count": len(templates)})
+
+
+@api_v1.route('/prompt_books/improve', methods=['POST'])
+@require_api_key
+@limiter.limit("20 per hour")
+def improve_prompt_book():
+    data = request.get_json() or {}
+    template_id = data.get("template_id")
+    if not template_id:
+        return jsonify({"error": "Missing 'template_id'"}), 400
+    try:
+        improved = improve_prompt_template(template_id)
+    except ValueError:
+        return jsonify({"error": f"Template '{template_id}' not found"}), 404
+    return jsonify({"status": "improved", "template": improved})
 
 @api_v1.route('/job_status/<job_id>')
 @limiter.exempt
@@ -230,23 +305,23 @@ def chat():
     ticker = data['ticker'].upper()
     question = data['question'].strip()
     history = data.get('history', [])  # list of {role, content} dicts
+    template_id = data.get("template_id")
+    template_variables = data.get("template_variables", {})
 
     if not question:
         return jsonify({"error": "Question cannot be empty"}), 400
 
     try:
 
-        # Check if we have data for this ticker
-        stats = get_collection_stats(ticker)
-        if stats['total_chunks'] == 0:
+        hybrid = query_with_planner(ticker=ticker, question=question, top_k=8)
+        results = hybrid.get("results", [])
+        if not results:
             return jsonify({
-                "answer": f"No documents found for **{ticker}** in the RAG store. Please ingest documents first using the /ingest_local endpoint.",
+                "answer": f"No retrievable context found for **{ticker}**. Build corpus registry and ingest documents for this ticker.",
                 "sources": [],
-                "chunks_used": 0
+                "chunks_used": 0,
+                "plan": hybrid.get("plan", {}),
             })
-
-        # Query RAG for relevant chunks
-        results = rag_query(ticker, question, top_k=8)
 
         # Build context from retrieved chunks
         context_parts = []
@@ -273,7 +348,7 @@ def chat():
         rag_context = "\n\n---\n\n".join(context_parts)
 
         # Build messages for DeepSeek
-        system_prompt = f"""You are Novus, an expert financial analyst assistant. You answer questions about {ticker} using ONLY the provided document context. 
+        default_system_prompt = f"""You are Novus, an expert financial analyst assistant. You answer questions about {ticker} using ONLY the provided document context. 
 
 Rules:
 - Base your answers ONLY on the provided context. If the context doesn't contain enough information, say so clearly.
@@ -282,6 +357,13 @@ Rules:
 - Be precise with numbers and financial metrics.
 - Format your response in clean markdown with headers, bullet points, and bold text for key figures.
 - Keep answers concise but comprehensive."""
+        system_prompt = default_system_prompt
+        if template_id:
+            try:
+                merged_vars = {"ticker": ticker, "question": question, **template_variables}
+                system_prompt = render_prompt(template_id, merged_vars)
+            except Exception as exc:
+                logger.info(f"[PromptBook] Failed to render {template_id}: {exc}")
 
         messages = [{"role": "system", "content": system_prompt}]
 
@@ -314,7 +396,10 @@ Rules:
             "answer": answer,
             "sources": sources[:5],
             "chunks_used": len(results),
-            "ticker": ticker
+            "ticker": ticker,
+            "plan": hybrid.get("plan", {}),
+            "telemetry": hybrid.get("telemetry", {}),
+            "template_id": template_id,
         })
 
     except Exception as e:
